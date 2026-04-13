@@ -128,8 +128,6 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
       BarcodeFormat.QR_CODE,
     ])
-    hints.set(DecodeHintType.TRY_HARDER, true)
-
     const r = new BrowserMultiFormatReader(hints)
     rdrRef.current = r
     try {
@@ -138,11 +136,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       await r.decodeFromConstraints(
         {
           video: {
-            facingMode:  { ideal: 'environment' },
-            width:       { min: 640,  ideal: 1920 },
-            height:      { min: 480,  ideal: 1080 },
-            frameRate:   { min: 15,   ideal: 30   },
-            focusMode:   'continuous',
+            facingMode: { ideal: 'environment' },
+            width:      { min: 640, ideal: 1280 },
+            height:     { min: 480, ideal: 720  },
+            frameRate:  { min: 15,  ideal: 30   },
           },
         },
         vidRef.current,
