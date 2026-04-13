@@ -28,7 +28,9 @@ export default function CounterApp() {
   const deviceId = getDeviceId()
 
   // Ref para leer screen actual dentro del listener popstate sin stale closure
-  const screenRef = useRef(screen)
+  const screenRef   = useRef(screen)
+  // Evita que el efecto de persistencia borre sessionStorage en el primer render
+  const didMountRef = useRef(false)
   useEffect(() => { screenRef.current = screen }, [screen])
 
   /* ─── Carga de datos ─────────────────────────────────────────────── */
@@ -76,6 +78,7 @@ export default function CounterApp() {
 
   /* ─── Persistir posición en sessionStorage ───────────────────────── */
   useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return }
     if (screen === 'inventario') {
       sessionStorage.removeItem(POS_KEY)
     } else {
