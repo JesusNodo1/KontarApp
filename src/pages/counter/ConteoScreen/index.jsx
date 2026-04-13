@@ -93,9 +93,16 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       setMCodInicial(cod.trim()); setMOpen(true)
       return
     }
-    setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
-    await reg(p, 1, true)
-    tFlash()
+    if (modo === 'total') {
+      // Total: cerrar cámara y mostrar tarjeta para ingresar cantidad
+      cerrarCam()
+      setProd(p); setCantidad(1); setQuery(cod.trim())
+    } else {
+      // Unitario: +1 directo, cámara sigue abierta
+      setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
+      await reg(p, 1, true)
+      tFlash()
+    }
   }
 
   /* ── activar autofocus continuo en el track de video ── */
