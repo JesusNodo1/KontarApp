@@ -81,12 +81,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     const r = new BrowserMultiFormatReader()
     rdrRef.current = r
     try {
-      const allDevs = await navigator.mediaDevices.enumerateDevices()
-      const devs = allDevs.filter(d => d.kind === 'videoinput')
-      if (!devs.length) throw new Error('No se encontró cámara.')
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Cámara no disponible en este dispositivo.')
       setCamR(true)
-      const deviceId = devs[devs.length - 1].deviceId
-      r.decodeFromVideoDevice(deviceId || undefined, vidRef.current, res => {
+      r.decodeFromVideoDevice(undefined, vidRef.current, (res, err) => {
         if (res) { cerrarCam(); procCod(res.getText()) }
       })
     } catch (e) { setCamE(e.message || 'Error de cámara.') }
