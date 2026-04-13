@@ -83,9 +83,13 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Cámara no disponible en este dispositivo.')
       setCamR(true)
-      r.decodeFromVideoDevice(undefined, vidRef.current, (res, err) => {
-        if (res) { cerrarCam(); procCod(res.getText()) }
-      })
+      await r.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' } } },
+        vidRef.current,
+        (res, err) => {
+          if (res) { cerrarCam(); procCod(res.getText()) }
+        }
+      )
     } catch (e) { setCamE(e.message || 'Error de cámara.') }
   }, [])
 
