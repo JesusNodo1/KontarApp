@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx kill-port:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5173)",
+      "Bash(taskkill /PID 20172 /T)",
+      "Bash(taskkill /PID 18592 /T)",
+      "Bash(cmd /c \"taskkill /PID 20172 /T\")",
+      "Bash(cmd /c \"taskkill /PID 18592 /T\")",
+      "mcp__d4bf3bbb-a886-426b-a1ea-4b348248af6a__apply_migration",
+      "mcp__d4bf3bbb-a886-426b-a1ea-4b348248af6a__execute_sql",
+      "mcp__d4bf3bbb-a886-426b-a1ea-4b348248af6a__list_projects",
+      "mcp__d4bf3bbb-a886-426b-a1ea-4b348248af6a__deploy_edge_function"
+    ]
+  }
+}
