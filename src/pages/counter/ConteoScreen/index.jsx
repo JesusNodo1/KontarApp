@@ -16,6 +16,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [prod,       setProd]       = useState(null)
   const [cantidad,   setCantidad]   = useState(1)
   const [conteos,    setConteos]    = useState([])
+  const conteosRef = useRef([])
   const [loadingC,   setLoadingC]   = useState(true)
   const [buscando,   setBuscando]   = useState(false)
   const [noEnc,      setNoEnc]      = useState(false)
@@ -34,6 +35,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const rdrRef = useRef(null)
   const inpRef = useRef(null)
 
+  // Mantener ref sincronizada para leer en callbacks async sin stale closure
+  useEffect(() => { conteosRef.current = conteos }, [conteos])
+
   // Cargar conteos existentes al entrar en la zona
   useEffect(() => {
     setLoadingC(true)
@@ -46,15 +50,19 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
 
   // Guardar en DB y actualizar estado local
-  const reg = useCallback(async (p, c) => {
+  // increment=true → suma c a la cantidad existente (modo unitario)
+  // increment=false → reemplaza con c (modo total y edición manual)
+  const reg = useCallback(async (p, c, increment = false) => {
+    const existing = conteosRef.current.find(x => x.producto_id === p.id)
+    const finalCantidad = increment && existing ? existing.cantidad + c : c
     // Optimistic update
     setConteos(prev => {
       const i = prev.findIndex(x => x.producto_id === p.id)
-      const item = { id: p.id, producto_id: p.id, nombre: p.nombre, variante: p.variante, sku: p.sku, cantidad: c, ts: new Date() }
+      const item = { id: p.id, producto_id: p.id, nombre: p.nombre, variante: p.variante, sku: p.sku, cantidad: finalCantidad, ts: new Date() }
       if (i !== -1) {
         const cp = [...prev]
-        cp[i] = item
         const [it] = cp.splice(i, 1)
+        it.cantidad = finalCantidad; it.ts = new Date()
         return [it, ...cp]
       }
       return [item, ...prev]
@@ -66,7 +74,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
         inventario_id: inv.id,
         producto_id:  p.id,
         usuario_id:   user.id,
-        cantidad:     c,
+        cantidad:     finalCantidad,
       })
     } catch (e) {
       console.error('[ConteoScreen] upsertConteo error:', e)
@@ -108,8 +116,8 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     const p = await bxCod(cod)
     setBuscando(false)
     if (!p) { setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
-    if (modo === 'unitario') { await sl(120); await reg(p, 1); tFlash(); setQuery(''); inpRef.current?.focus() }
-    else { setProd(p); setCantidad(1); setQuery(cod) }
+    // Producto encontrado → siempre suma +1 directo al escanear
+    await sl(120); await reg(p, 1, true); tFlash(); setQuery(''); inpRef.current?.focus()
   }, [modo, reg])
 
   const handleConf = async () => {
