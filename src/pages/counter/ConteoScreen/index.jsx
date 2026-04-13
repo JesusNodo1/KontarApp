@@ -28,12 +28,15 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [camO,       setCamO]       = useState(false)
   const [camE,       setCamE]       = useState('')
   const [camR,       setCamR]       = useState(false)
+  const [camLast,    setCamLast]    = useState(null)
   const [eId,        setEId]        = useState(null)
   const [eVal,       setEVal]       = useState('')
 
-  const vidRef = useRef(null)
-  const rdrRef = useRef(null)
-  const inpRef = useRef(null)
+  const vidRef     = useRef(null)
+  const rdrRef     = useRef(null)
+  const inpRef     = useRef(null)
+  const coolRef    = useRef(false)
+  const camProcRef = useRef(null)
 
   // Mantener ref sincronizada para leer en callbacks async sin stale closure
   useEffect(() => { conteosRef.current = conteos }, [conteos])
@@ -81,22 +84,55 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
   }, [zona.id, inv.id, user.id])
 
+  /* ── procesamiento de código desde cámara (ref para evitar stale closure) ── */
+  camProcRef.current = async cod => {
+    if (!cod?.trim()) return
+    const p = await bxCod(cod.trim())
+    if (!p) {
+      cerrarCam()
+      setMCodInicial(cod.trim()); setMOpen(true)
+      return
+    }
+    setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku })
+    await reg(p, 1, true)
+    tFlash()
+  }
+
   /* ── cámara ── */
   const abrirCam = useCallback(async () => {
-    setCamE(''); setCamO(true); setCamR(false)
+    setCamE(''); setCamO(true); setCamR(false); setCamLast(null)
     const mod = await loadZx()
     if (!mod) { setCamE('Error al cargar librería de escaneo.'); return }
-    const { BrowserMultiFormatReader } = mod
-    const r = new BrowserMultiFormatReader()
+    const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = mod
+
+    const hints = new Map()
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+      BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+      BarcodeFormat.QR_CODE,
+    ])
+
+    const r = new BrowserMultiFormatReader(hints)
     rdrRef.current = r
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('Cámara no disponible en este dispositivo.')
       setCamR(true)
       await r.decodeFromConstraints(
-        { video: { facingMode: { ideal: 'environment' } } },
+        {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:     { min: 640,  ideal: 1280 },
+            height:    { min: 480,  ideal: 720  },
+            frameRate: { min: 15,   ideal: 30   },
+          },
+        },
         vidRef.current,
-        (res, err) => {
-          if (res) { cerrarCam(); procCod(res.getText()) }
+        (res) => {
+          if (!res || coolRef.current) return
+          coolRef.current = true
+          setTimeout(() => { coolRef.current = false }, 1500)
+          camProcRef.current(res.getText())
         }
       )
     } catch (e) { setCamE(e.message || 'Error de cámara.') }
@@ -104,7 +140,8 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   const cerrarCam = useCallback(() => {
     rdrRef.current?.reset(); rdrRef.current = null
-    setCamO(false); setCamR(false)
+    coolRef.current = false
+    setCamO(false); setCamR(false); setCamLast(null)
   }, [])
 
   useEffect(() => () => rdrRef.current?.reset(), [])
@@ -116,14 +153,15 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     const p = await bxCod(cod)
     setBuscando(false)
     if (!p) { setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
-    // Producto encontrado → siempre suma +1 directo al escanear
-    await sl(120); await reg(p, 1, true); tFlash(); setQuery(''); inpRef.current?.focus()
+    // Unitario → +1 directo; Total → muestra tarjeta para ingresar cantidad exacta
+    if (modo === 'unitario') { await sl(120); await reg(p, 1, true); tFlash(); setQuery(''); inpRef.current?.focus() }
+    else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
 
   const handleConf = async () => {
     if (!prod || cantidad < 1) return
     setConfirming(true)
-    await reg(prod, cantidad)
+    await reg(prod, cantidad, false) // total: reemplaza la cantidad, no acumula
     tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
     inpRef.current?.focus()
@@ -177,7 +215,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   return (
     <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {flash && <div className="flash" />}
-      {camO  && <ModalCam vidRef={vidRef} camR={camR} camE={camE} onCerrar={cerrarCam} />}
+      {camO  && <ModalCam vidRef={vidRef} camR={camR} camE={camE} onCerrar={cerrarCam} lastScan={camLast} />}
       {mOpen && <ModalBusqueda onSeleccionar={handleSelModal} onCerrar={() => { setMOpen(false); setMCodInicial('') }} codigoInicial={mCodInicial} />}
 
       {/* header */}
