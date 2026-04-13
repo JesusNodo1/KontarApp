@@ -1,0 +1,6 @@
+export const B  = '#3B82F6'
+export const BD = '#2563EB'
+export const BL = '#EFF6FF'
+export const G  = '#10B981'
+export const GD = '#059669'
+export const GL = '#F0FDF4'
