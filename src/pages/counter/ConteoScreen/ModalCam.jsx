@@ -42,12 +42,15 @@ export default function ModalCam({ vidRef, camR, camE, onCerrar, lastScan }) {
               <path d="M20 6L9 17l-5-5"/>
             </svg>
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ color: '#4ade80', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {lastScan.nombre}{lastScan.variante ? ` · ${lastScan.variante}` : ''}
             </div>
             <div style={{ color: '#86efac', fontSize: 11, fontFamily: "'DM Mono',monospace", marginTop: 2 }}>
               {lastScan.sku} · +1 registrado
+            </div>
+            <div style={{ color: '#6ee7b7', fontSize: 10, fontFamily: "'DM Mono',monospace", marginTop: 3, opacity: 0.7 }}>
+              leído: {lastScan.raw}
             </div>
           </div>
         </div>

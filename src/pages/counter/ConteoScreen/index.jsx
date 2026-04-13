@@ -93,9 +93,18 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       setMCodInicial(cod.trim()); setMOpen(true)
       return
     }
-    setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku })
+    setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
     await reg(p, 1, true)
     tFlash()
+  }
+
+  /* ── activar autofocus continuo en el track de video ── */
+  const activarAutofocus = track => {
+    if (!track) return
+    const caps = track.getCapabilities?.() || {}
+    if (caps.focusMode?.includes('continuous')) {
+      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {})
+    }
   }
 
   /* ── cámara ── */
@@ -112,6 +121,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
       BarcodeFormat.QR_CODE,
     ])
+    hints.set(DecodeHintType.TRY_HARDER, true)
 
     const r = new BrowserMultiFormatReader(hints)
     rdrRef.current = r
@@ -121,10 +131,11 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       await r.decodeFromConstraints(
         {
           video: {
-            facingMode: { ideal: 'environment' },
-            width:     { min: 640,  ideal: 1280 },
-            height:    { min: 480,  ideal: 720  },
-            frameRate: { min: 15,   ideal: 30   },
+            facingMode:  { ideal: 'environment' },
+            width:       { min: 640,  ideal: 1920 },
+            height:      { min: 480,  ideal: 1080 },
+            frameRate:   { min: 15,   ideal: 30   },
+            focusMode:   'continuous',
           },
         },
         vidRef.current,
@@ -135,6 +146,8 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
           camProcRef.current(res.getText())
         }
       )
+      const track = vidRef.current?.srcObject?.getVideoTracks?.()?.[0]
+      activarAutofocus(track)
     } catch (e) { setCamE(e.message || 'Error de cámara.') }
   }, [])
 
