@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { checkTerminal, getDeviceId } from '../../services/auth'
+import { useAuth } from '../../context/AuthContext'
 import { B } from '../../constants/theme'
 
-/**
- * Pantalla de entrada: verifica si el terminal está activado.
- * - Si ya está en la DB → redirige a /login
- * - Si no → redirige a /activate
- */
 export default function TerminalGate() {
-  const [status, setStatus] = useState('checking') // 'checking' | 'registered' | 'unregistered'
+  const [status, setStatus] = useState('checking')
+  const { user } = useAuth()
 
   useEffect(() => {
-    // Asegurar que el device_id exista antes de verificar
     getDeviceId()
     checkTerminal()
-      .then(registered => setStatus(registered ? 'registered' : 'unregistered'))
+      .then(registered => {
+        if (!registered) { setStatus('unregistered'); return }
+        // Terminal registrada → si ya hay sesión, ir directo a la app
+        if (user) {
+          setStatus(user.rol === 'admin' ? 'admin' : 'contador')
+        } else {
+          setStatus('registered')
+        }
+      })
       .catch(() => setStatus('unregistered'))
-  }, [])
+  }, [user])
 
   if (status === 'checking') {
     return (
@@ -27,6 +31,8 @@ export default function TerminalGate() {
     )
   }
 
-  if (status === 'registered') return <Navigate to="/login" replace />
+  if (status === 'admin')    return <Navigate to="/admin"    replace />
+  if (status === 'contador') return <Navigate to="/contador" replace />
+  if (status === 'registered') return <Navigate to="/login"  replace />
   return <Navigate to="/activate" replace />
 }

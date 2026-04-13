@@ -3,14 +3,14 @@ import { B, BL, G, GL } from '../../../constants/theme'
 import { bxTxt, crearProducto } from '../../../services/productService'
 import Spinner from '../../../components/Spinner'
 
-export default function ModalBusqueda({ onSeleccionar, onCerrar }) {
+export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial = '' }) {
   const [query,    setQuery]    = useState('')
   const [results,  setResults]  = useState([])
   const [loading,  setLoading]  = useState(false)
-  const [crearView, setCrearView] = useState(false)
+  const [crearView, setCrearView] = useState(!!codigoInicial)
   const [nNom,  setNNom]  = useState('')
   const [nVar,  setNVar]  = useState('')
-  const [nSku,  setNSku]  = useState('')
+  const [nSku,  setNSku]  = useState(codigoInicial)
   const [nCant, setNCant] = useState('')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)

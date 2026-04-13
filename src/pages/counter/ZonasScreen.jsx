@@ -3,6 +3,7 @@ import { B, BL, G, GD, GL } from '../../constants/theme'
 import ProgBar from '../../components/ProgBar'
 import Spinner from '../../components/Spinner'
 
+
 function CheckIcon() {
   return (
     <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={G} strokeWidth="2.5" strokeLinecap="square">
@@ -20,16 +21,14 @@ function GridIcon() {
   )
 }
 
-export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZona, onFinalizarInventario }) {
-  const [showModal,    setShowModal]    = useState(false)
-  const [nom,          setNom]          = useState('')
-  const [desc,         setDesc]         = useState('')
-  const [saving,       setSaving]       = useState(false)
-  const [finalizando,  setFinalizando]  = useState(false)
-  const [errorModal,   setErrorModal]   = useState('')
+export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZona }) {
+  const [showModal,  setShowModal]  = useState(false)
+  const [nom,        setNom]        = useState('')
+  const [desc,       setDesc]       = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [errorModal, setErrorModal] = useState('')
 
-  const contados    = zonas.reduce((s, z) => s + z.productos_contados, 0)
-  const finalizadas = zonas.filter(z => z.finalizada).length
+  const contados = zonas.reduce((s, z) => s + z.productos_contados, 0)
 
   const handleCrear = async () => {
     if (!nom.trim()) return
@@ -42,13 +41,6 @@ export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZ
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleFinalizar = async () => {
-    setFinalizando(true)
-    try { await onFinalizarInventario() }
-    catch (e) { alert(e.message) }
-    finally { setFinalizando(false) }
   }
 
   return (
@@ -130,19 +122,6 @@ export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZ
         </button>
       </div>
 
-      {/* footer */}
-      <div style={{ padding: '12px 14px', paddingBottom: 'max(env(safe-area-inset-bottom),12px)', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
-        <button
-          onClick={handleFinalizar}
-          disabled={finalizando}
-          style={{ width: '100%', padding: '14px 0', background: finalizando ? `${G}99` : (finalizadas === zonas.length && zonas.length > 0 ? G : B), border: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#fff', cursor: finalizando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-        >
-          {finalizando
-            ? <><Spinner /> Cerrando...</>
-            : (finalizadas === zonas.length && zonas.length > 0 ? '✓ Finalizar inventario' : 'Cerrar inventario')
-          }
-        </button>
-      </div>
 
       {/* modal crear zona */}
       {showModal && (

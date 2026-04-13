@@ -23,6 +23,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [confirming, setConfirming] = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [mOpen,      setMOpen]      = useState(false)
+  const [mCodInicial,setMCodInicial]= useState('')
   const [camO,       setCamO]       = useState(false)
   const [camE,       setCamE]       = useState('')
   const [camR,       setCamR]       = useState(false)
@@ -106,7 +107,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     setBuscando(true); setNoEnc(false)
     const p = await bxCod(cod)
     setBuscando(false)
-    if (!p) { setNoEnc(true); setTimeout(() => setNoEnc(false), 1800); return }
+    if (!p) { setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
     if (modo === 'unitario') { await sl(120); await reg(p, 1); tFlash(); setQuery(''); inpRef.current?.focus() }
     else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
@@ -169,7 +170,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {flash && <div className="flash" />}
       {camO  && <ModalCam vidRef={vidRef} camR={camR} camE={camE} onCerrar={cerrarCam} />}
-      {mOpen && <ModalBusqueda onSeleccionar={handleSelModal} onCerrar={() => setMOpen(false)} />}
+      {mOpen && <ModalBusqueda onSeleccionar={handleSelModal} onCerrar={() => { setMOpen(false); setMCodInicial('') }} codigoInicial={mCodInicial} />}
 
       {/* header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 14px', paddingTop: 'max(env(safe-area-inset-top),12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
