@@ -11,6 +11,8 @@ import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen from './pages/admin/InventariosScreen'
+import VendedorLayout   from './pages/vendedor/VendedorLayout'
+import LicenciasScreen  from './pages/vendedor/LicenciasScreen'
 
 export default function App() {
   return (
@@ -50,6 +52,19 @@ export default function App() {
             <Route path="productos"   element={<ProductosScreen />} />
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />
+          </Route>
+
+          {/* Vendedor */}
+          <Route
+            path="/vendedor"
+            element={
+              <PrivateRoute requiredRole="vendedor">
+                <VendedorLayout />
+              </PrivateRoute>
+            }
+          >
+            <Route index element={<Navigate to="/vendedor/licencias" replace />} />
+            <Route path="licencias" element={<LicenciasScreen />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

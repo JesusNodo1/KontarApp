@@ -15,7 +15,9 @@ export default function TerminalGate() {
         if (!registered) { setStatus('unregistered'); return }
         // Terminal registrada → si ya hay sesión, ir directo a la app
         if (user) {
-          setStatus(user.rol === 'admin' ? 'admin' : 'contador')
+          if      (user.rol === 'vendedor') setStatus('vendedor')
+          else if (user.rol === 'admin')    setStatus('admin')
+          else                              setStatus('contador')
         } else {
           setStatus('registered')
         }
@@ -31,6 +33,7 @@ export default function TerminalGate() {
     )
   }
 
+  if (status === 'vendedor') return <Navigate to="/vendedor"  replace />
   if (status === 'admin')    return <Navigate to="/admin"    replace />
   if (status === 'contador') return <Navigate to="/contador" replace />
   if (status === 'registered') return <Navigate to="/login"  replace />
