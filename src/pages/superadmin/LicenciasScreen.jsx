@@ -1,12 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente } from '../../services/vendorService'
-import Spinner from '../../components/Spinner'
-
-const V = '#7C3AED'
-const VL = '#EDE9FE'
+import { B, BL } from '../../constants/theme'
 
 const ROL_LABEL = { admin: 'Admin', contador: 'Contador', superadmin: 'Superadmin' }
-const ROL_COLOR = { admin: { bg: '#DBEAFE', c: '#1D4ED8' }, contador: { bg: '#D1FAE5', c: '#059669' }, superadmin: { bg: VL, c: V } }
+const ROL_COLOR = {
+  admin:      { bg: '#DBEAFE', c: '#1D4ED8' },
+  contador:   { bg: '#D1FAE5', c: '#059669' },
+  superadmin: { bg: BL,        c: B          },
+}
+
+function Spin({ color = B, size = 22 }) {
+  return (
+    <div className="spin" style={{ width: size, height: size, border: `2.5px solid #E5E7EB`, borderTopColor: color, borderRadius: '50%', flexShrink: 0 }} />
+  )
+}
 
 function fmtFecha(iso) {
   if (!iso) return '—'
@@ -32,7 +39,6 @@ export default function LicenciasScreen() {
   const [usuarios,     setUsuarios]     = useState([])
   const [loadingU,     setLoadingU]     = useState(false)
 
-  // Toggle loading state per licencia
   const [toggling, setToggling] = useState(null)
 
   const loadData = useCallback(async () => {
@@ -44,7 +50,7 @@ export default function LicenciasScreen() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  /* ── Crear licencia ── */
+  /* ── Crear ── */
   const handleCrear = async e => {
     e.preventDefault()
     if (!form.nombre_empresa.trim() || !form.email_admin.trim()) { setFormErr('Nombre de empresa y email son requeridos.'); return }
@@ -60,7 +66,7 @@ export default function LicenciasScreen() {
 
   const cerrarModalCrear = () => { setShowCrear(false); setForm(FORM_VACIO); setFormErr(''); setCreated(null) }
 
-  /* ── Toggle licencia ── */
+  /* ── Toggle ── */
   const handleToggle = async (lic) => {
     setToggling(lic.id)
     try {
@@ -81,60 +87,65 @@ export default function LicenciasScreen() {
     finally { setLoadingU(false) }
   }
 
-  /* ── helpers ── */
   const totalActivas   = clientes.reduce((s, c) => s + c.licencias.filter(l => l.activa).length, 0)
   const totalInactivas = clientes.reduce((s, c) => s + c.licencias.filter(l => !l.activa).length, 0)
 
+  /* ── Input style helper ── */
+  const inputStyle = { width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 12px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box', outline: 'none' }
+
   return (
-    <div style={{ padding: '24px 24px', maxWidth: 960, margin: '0 auto' }}>
+    <div style={{ padding: '28px 28px', maxWidth: 960, margin: '0 auto' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Gestión de Licencias</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>Gestión de Licencias</div>
           {!loading && (
             <div style={{ fontSize: 13, color: '#6B7280', marginTop: 3 }}>
-              {clientes.length} clientes · {totalActivas} activas · {totalInactivas} inactivas
+              {clientes.length} cliente{clientes.length !== 1 ? 's' : ''} · {totalActivas} activa{totalActivas !== 1 ? 's' : ''} · {totalInactivas} inactiva{totalInactivas !== 1 ? 's' : ''}
             </div>
           )}
         </div>
         <button
           onClick={() => setShowCrear(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: V, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: B, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
         >
-          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><line x1={12} y1={5} x2={12} y2={19}/><line x1={5} y1={12} x2={19} y2={12}/></svg>
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><line x1={12} y1={5} x2={12} y2={19}/><line x1={5} y1={12} x2={19} y2={12}/></svg>
           Nueva licencia
         </button>
       </div>
 
-      {/* Estados */}
+      {/* Loading */}
       {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-          <div className="spin" style={{ width: 28, height: 28, border: '3px solid #E5E7EB', borderTopColor: V, borderRadius: '50%' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 56 }}>
+          <Spin size={28} />
         </div>
       )}
 
+      {/* Error */}
       {error && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '14px 16px', color: '#DC2626', fontSize: 14, marginBottom: 20 }}>
-          Error: {error}
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '12px 16px', color: '#DC2626', fontSize: 13, fontWeight: 500, marginBottom: 20 }}>
+          ✕ {error}
         </div>
       )}
 
-      {/* Lista de clientes */}
+      {/* Vacío */}
       {!loading && !error && clientes.length === 0 && (
-        <div style={{ background: '#fff', border: '1px solid #E5E7EB', padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}`, padding: 48, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
           No hay clientes aún. Creá la primera licencia.
         </div>
       )}
 
+      {/* Lista */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {clientes.map(c => (
-          <div key={c.id} style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div key={c.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}` }}>
+
             {/* Cliente header */}
             <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F3F4F6', flexWrap: 'wrap', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 40, height: 40, background: VL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={V} strokeWidth="2.2" strokeLinecap="square">
+                <div style={{ width: 40, height: 40, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square">
                     <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
                   </svg>
                 </div>
@@ -147,48 +158,34 @@ export default function LicenciasScreen() {
               </div>
               <button
                 onClick={() => abrirUsuarios(c)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F3F4F6', border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
               >
                 <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx={9} cy={7} r={4}/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                 Ver usuarios
               </button>
             </div>
 
-            {/* Licencias del cliente */}
+            {/* Licencias */}
             <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {c.licencias.length === 0 && (
                 <div style={{ fontSize: 13, color: '#9CA3AF' }}>Sin licencias</div>
               )}
               {c.licencias.map(lic => (
-                <div key={lic.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: lic.activa ? '#FAFAFA' : '#FEF2F2', border: `1px solid ${lic.activa ? '#E5E7EB' : '#FECACA'}`, flexWrap: 'wrap' }}>
-                  {/* Código */}
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: lic.activa ? V : '#9CA3AF', letterSpacing: '0.1em', flex: '0 0 auto' }}>
+                <div key={lic.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: lic.activa ? '#F9FAFB' : '#FEF2F2', border: `1px solid ${lic.activa ? '#E5E7EB' : '#FECACA'}`, flexWrap: 'wrap' }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: lic.activa ? B : '#9CA3AF', letterSpacing: '0.1em', flex: '0 0 auto' }}>
                     {lic.codigo}
                   </div>
-
-                  {/* Badge estado */}
                   <div style={{ padding: '3px 10px', background: lic.activa ? '#D1FAE5' : '#FEE2E2', color: lic.activa ? '#059669' : '#DC2626', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                     {lic.activa ? 'Activa' : 'Inactiva'}
                   </div>
-
                   <div style={{ fontSize: 11, color: '#9CA3AF', flex: 1 }}>Creada {fmtFecha(lic.created_at)}</div>
-
-                  {/* Toggle */}
                   <button
                     onClick={() => handleToggle(lic)}
                     disabled={toggling === lic.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '6px 12px',
-                      background: lic.activa ? '#FEF2F2' : '#D1FAE5',
-                      border: `1px solid ${lic.activa ? '#FECACA' : '#6EE7B7'}`,
-                      color: lic.activa ? '#DC2626' : '#059669',
-                      fontSize: 12, fontWeight: 600, cursor: toggling === lic.id ? 'not-allowed' : 'pointer',
-                      opacity: toggling === lic.id ? 0.6 : 1,
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: lic.activa ? '#FEF2F2' : '#D1FAE5', border: `1px solid ${lic.activa ? '#FECACA' : '#6EE7B7'}`, color: lic.activa ? '#DC2626' : '#059669', fontSize: 12, fontWeight: 600, cursor: toggling === lic.id ? 'not-allowed' : 'pointer', opacity: toggling === lic.id ? 0.6 : 1 }}
                   >
                     {toggling === lic.id
-                      ? <Spinner />
+                      ? <Spin size={12} color={lic.activa ? '#DC2626' : '#059669'} />
                       : lic.activa
                         ? <><svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><line x1={18} y1={6} x2={6} y2={18}/><line x1={6} y1={6} x2={18} y2={18}/></svg> Desactivar</>
                         : <><svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg> Activar</>
@@ -201,15 +198,14 @@ export default function LicenciasScreen() {
         ))}
       </div>
 
-      {/* ══ Modal Crear Licencia ══ */}
+      {/* ══ Modal Crear ══ */}
       {showCrear && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
             {!created ? (
               <>
-                {/* Formulario */}
                 <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontWeight: 700, fontSize: 18, color: '#111827' }}>Nueva licencia</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: '#111827' }}>Nueva licencia</div>
                   <button onClick={cerrarModalCrear} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280', lineHeight: 1 }}>×</button>
                 </div>
 
@@ -220,24 +216,26 @@ export default function LicenciasScreen() {
                     { key: 'nombre_admin',   label: 'NOMBRE DEL ADMIN',       placeholder: 'Ej: Juan López' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
                       <input
                         type={key === 'email_admin' ? 'email' : 'text'}
                         value={form[key]}
                         onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                         placeholder={placeholder}
-                        style={{ width: '100%', height: 42, border: '1.5px solid #D1D5DB', padding: '0 12px', fontSize: 14, color: '#111827', boxSizing: 'border-box', outline: 'none' }}
+                        style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = B}
+                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
                       />
                     </div>
                   ))}
 
                   <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', fontSize: 13, color: '#166534' }}>
-                    ✓ Se generará una contraseña aleatoria segura. Aparecerá al terminar para que se la pases al cliente.
+                    ✓ Se generará un código de activación y contraseña aleatorios. Aparecerán al finalizar.
                   </div>
 
                   {formErr && (
-                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626' }}>
-                      {formErr}
+                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626', fontWeight: 500 }}>
+                      ✕ {formErr}
                     </div>
                   )}
 
@@ -245,17 +243,16 @@ export default function LicenciasScreen() {
                     <button type="button" onClick={cerrarModalCrear} style={{ flex: 1, padding: '12px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
                       Cancelar
                     </button>
-                    <button type="submit" disabled={saving} style={{ flex: 2, padding: '12px 0', background: saving ? '#A78BFA' : V, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                      {saving ? <><Spinner /> Creando...</> : '✓ Crear licencia'}
+                    <button type="submit" disabled={saving} style={{ flex: 2, padding: '12px 0', background: saving ? `${B}99` : B, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {saving ? <><Spin size={14} color="#fff" /> Creando...</> : 'Crear licencia'}
                     </button>
                   </div>
                 </form>
               </>
             ) : (
-              /* Resultado exitoso */
               <>
                 <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontWeight: 700, fontSize: 18, color: '#111827' }}>¡Licencia creada!</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: '#111827' }}>¡Licencia creada!</div>
                   <button onClick={cerrarModalCrear} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280', lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -266,27 +263,27 @@ export default function LicenciasScreen() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {[
                       { label: 'Empresa',    value: created.cliente?.nombre },
                       { label: 'Email admin', value: created.email },
                     ].map(({ label, value }) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 0', borderBottom: '1px solid #F3F4F6' }}>
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
                         <span style={{ color: '#6B7280', fontWeight: 600 }}>{label}</span>
                         <span style={{ color: '#111827', fontWeight: 500 }}>{value}</span>
                       </div>
                     ))}
-                    {/* Contraseña generada — destacada */}
-                    <div style={{ padding: '10px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ marginTop: 8, padding: '12px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: '#92400E', fontWeight: 600, fontSize: 13 }}>Contraseña</span>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: '#B45309', letterSpacing: '0.06em' }}>{created.password}</span>
                     </div>
                   </div>
+
                   <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
                     Guardá esta contraseña — no se vuelve a mostrar
                   </div>
 
-                  <button onClick={cerrarModalCrear} style={{ padding: '13px 0', background: V, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>
+                  <button onClick={cerrarModalCrear} style={{ padding: '13px 0', background: B, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Listo
                   </button>
                 </div>
@@ -299,21 +296,19 @@ export default function LicenciasScreen() {
       {/* ══ Panel lateral usuarios ══ */}
       {panelCliente && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ width: '100%', maxWidth: 420, background: '#fff', display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-            {/* Header */}
-            <div style={{ padding: '18px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+          <div style={{ width: '100%', maxWidth: 400, background: '#fff', display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `3px solid ${B}`, position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{panelCliente.nombre}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{panelCliente.nombre}</div>
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Usuarios del cliente</div>
               </div>
               <button onClick={() => setPanelCliente(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>×</button>
             </div>
 
-            {/* Lista usuarios */}
-            <div style={{ flex: 1, padding: '16px 20px' }}>
+            <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
               {loadingU && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-                  <div className="spin" style={{ width: 22, height: 22, border: '2.5px solid #E5E7EB', borderTopColor: V, borderRadius: '50%' }} />
+                  <Spin size={22} />
                 </div>
               )}
               {!loadingU && usuarios.length === 0 && (
@@ -323,8 +318,8 @@ export default function LicenciasScreen() {
                 const rs = ROL_COLOR[u.rol] || { bg: '#F3F4F6', c: '#6B7280' }
                 return (
                   <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
-                    <div style={{ width: 38, height: 38, background: VL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={V} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
+                    <div style={{ width: 36, height: 36, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.nombre}</div>

@@ -1,8 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { logout } from '../../services/auth'
-
-const SA = '#7C3AED'
+import { B, BL } from '../../constants/theme'
 
 export default function SuperadminLayout() {
   const { user, signOut } = useAuth()
@@ -19,15 +18,16 @@ export default function SuperadminLayout() {
       <div style={{ width: 220, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, background: SA, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 34, height: 34, background: B, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="square">
-                <rect x={2} y={3} width={20} height={14} rx={1}/>
-                <path d="M8 21h8M12 17v4"/>
+                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                <line x1={12} y1="22.08" x2={12} y2={12}/>
               </svg>
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.1 }}>KontarApp</div>
-              <div style={{ fontSize: 10, color: SA, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>Superadmin</div>
+              <div style={{ fontSize: 10, color: B, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>Superadmin</div>
             </div>
           </div>
         </div>
@@ -38,9 +38,9 @@ export default function SuperadminLayout() {
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '11px 16px', fontSize: 14, fontWeight: isActive ? 700 : 500,
-              color: isActive ? SA : '#374151',
-              background: isActive ? '#EDE9FE' : 'transparent',
-              borderLeft: isActive ? `3px solid ${SA}` : '3px solid transparent',
+              color: isActive ? B : '#374151',
+              background: isActive ? BL : 'transparent',
+              borderLeft: isActive ? `3px solid ${B}` : '3px solid transparent',
               textDecoration: 'none',
             })}
           >
