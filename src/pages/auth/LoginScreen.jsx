@@ -12,11 +12,11 @@ export default function LoginScreen() {
   const { user, signIn } = useAuth()
   const navigate = useNavigate()
 
+  const destino = rol => rol === 'admin' ? '/admin' : rol === 'superadmin' ? '/licencias' : '/contador'
+
   // Redirigir si ya hay sesión activa
   useEffect(() => {
-    if (user) {
-      navigate(user.rol === 'admin' ? '/admin' : '/contador', { replace: true })
-    }
+    if (user) navigate(destino(user.rol), { replace: true })
   }, [user])
 
   const handleSubmit = async e => {
@@ -26,8 +26,12 @@ export default function LoginScreen() {
     try {
       const userData = await login(email, password)
       signIn(userData)
+      // Superadmin no necesita terminal activada
+      if (userData.rol === 'superadmin') {
+        navigate('/licencias', { replace: true }); return
+      }
       const activo = await checkTerminal()
-      navigate(activo ? (userData.rol === 'admin' ? '/admin' : '/contador') : '/activate', { replace: true })
+      navigate(activo ? destino(userData.rol) : '/activate', { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

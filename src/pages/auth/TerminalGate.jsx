@@ -10,14 +10,16 @@ export default function TerminalGate() {
 
   useEffect(() => {
     getDeviceId()
+
+    // Superadmin no necesita terminal registrada — va directo a su panel
+    if (user?.rol === 'superadmin') { setStatus('superadmin'); return }
+
     checkTerminal()
       .then(registered => {
         if (!registered) { setStatus('unregistered'); return }
-        // Terminal registrada → si ya hay sesión, ir directo a la app
         if (user) {
-          if      (user.rol === 'vendedor') setStatus('vendedor')
-          else if (user.rol === 'admin')    setStatus('admin')
-          else                              setStatus('contador')
+          if (user.rol === 'admin') setStatus('admin')
+          else                      setStatus('contador')
         } else {
           setStatus('registered')
         }
@@ -33,7 +35,7 @@ export default function TerminalGate() {
     )
   }
 
-  if (status === 'vendedor') return <Navigate to="/vendedor"  replace />
+  if (status === 'superadmin') return <Navigate to="/licencias" replace />
   if (status === 'admin')    return <Navigate to="/admin"    replace />
   if (status === 'contador') return <Navigate to="/contador" replace />
   if (status === 'registered') return <Navigate to="/login"  replace />

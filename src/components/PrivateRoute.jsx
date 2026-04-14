@@ -7,7 +7,7 @@ export default function PrivateRoute({ children, requiredRole }) {
   if (!user) return <Navigate to="/login" replace />
 
   if (requiredRole && user.rol !== requiredRole) {
-    const dest = user.rol === 'admin' ? '/admin' : user.rol === 'vendedor' ? '/vendedor' : '/contador'
+    const dest = user.rol === 'admin' ? '/admin' : user.rol === 'superadmin' ? '/licencias' : '/contador'
     return <Navigate to={dest} replace />
   }
 

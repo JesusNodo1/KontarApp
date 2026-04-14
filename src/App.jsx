@@ -11,8 +11,8 @@ import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen from './pages/admin/InventariosScreen'
-import VendedorLayout   from './pages/vendedor/VendedorLayout'
-import LicenciasScreen  from './pages/vendedor/LicenciasScreen'
+import SuperadminLayout  from './pages/superadmin/SuperadminLayout'
+import LicenciasScreen   from './pages/superadmin/LicenciasScreen'
 
 export default function App() {
   return (
@@ -54,17 +54,16 @@ export default function App() {
             <Route path="inventarios" element={<InventariosScreen />} />
           </Route>
 
-          {/* Vendedor */}
+          {/* Superadmin */}
           <Route
-            path="/vendedor"
+            path="/licencias"
             element={
-              <PrivateRoute requiredRole="vendedor">
-                <VendedorLayout />
+              <PrivateRoute requiredRole="superadmin">
+                <SuperadminLayout />
               </PrivateRoute>
             }
           >
-            <Route index element={<Navigate to="/vendedor/licencias" replace />} />
-            <Route path="licencias" element={<LicenciasScreen />} />
+            <Route index element={<LicenciasScreen />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
