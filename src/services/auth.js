@@ -20,7 +20,7 @@ export function getDeviceId() {
 /**
  * Obtiene el access token de la sesión activa desde localStorage
  */
-function getAccessToken() {
+export function getAccessToken() {
   const key = `sb-${SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`
   const raw = localStorage.getItem(key)
   if (!raw) return null
