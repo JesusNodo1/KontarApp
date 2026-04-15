@@ -46,10 +46,13 @@ export async function getProductos() {
  * Crea un producto nuevo
  */
 export async function crearProducto({ sku, nombre, variante, codigo_barras }) {
+  const { data: { user } } = await supabase.auth.getUser()
   const { data: perfil } = await supabase
     .from('perfiles')
     .select('cliente_id')
+    .eq('id', user.id)
     .maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
 
   const { data, error } = await supabase
     .from('productos')
@@ -65,10 +68,13 @@ export async function crearProducto({ sku, nombre, variante, codigo_barras }) {
  * Importa un array de productos (upsert por sku)
  */
 export async function importarProductos(rows) {
+  const { data: { user } } = await supabase.auth.getUser()
   const { data: perfil } = await supabase
     .from('perfiles')
     .select('cliente_id')
+    .eq('id', user.id)
     .maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
 
   const items = rows.map(r => ({
     cliente_id:    perfil.cliente_id,
