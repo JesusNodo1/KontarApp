@@ -55,7 +55,7 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
   ]
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onCerrar() }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 480, maxHeight: '88vh', display: 'flex', flexDirection: 'column', borderTop: `3px solid ${B}` }}>
 
         {/* header */}

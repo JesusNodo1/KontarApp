@@ -178,7 +178,6 @@ export default function InventariosScreen() {
       {/* ── panel de detalle ── */}
       {detalle && (
         <div
-          onClick={e => { if (e.target === e.currentTarget) setDetalle(null) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}
         >
           <div
@@ -363,7 +362,7 @@ export default function InventariosScreen() {
 
       {/* modal crear */}
       {showModal && (
-        <div onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#fff' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Abrir nuevo inventario</div>

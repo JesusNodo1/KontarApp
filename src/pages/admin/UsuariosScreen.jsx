@@ -101,7 +101,6 @@ export default function UsuariosScreen() {
       {/* modal nuevo usuario */}
       {showModal && (
         <div
-          onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 440, borderTop: `3px solid ${B}` }}>

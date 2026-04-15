@@ -125,7 +125,7 @@ export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZ
 
       {/* modal crear zona */}
       {showModal && (
-        <div onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 480, borderTop: `3px solid ${B}` }}>
             <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Nueva zona</div>

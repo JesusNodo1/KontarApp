@@ -201,7 +201,7 @@ export default function LicenciasScreen() {
       {/* ══ Modal Crear ══ */}
       {showCrear && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
             {!created ? (
               <>
                 <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -265,16 +265,17 @@ export default function LicenciasScreen() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {[
-                      { label: 'Empresa',    value: created.cliente?.nombre },
-                      { label: 'Email admin', value: created.email },
+                      { label: 'Empresa',      value: created.cliente?.nombre },
+                      { label: 'Nombre admin', value: form.nombre_admin?.trim() || 'Admin' },
+                      { label: 'Email admin',  value: created.email },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
                         <span style={{ color: '#6B7280', fontWeight: 600 }}>{label}</span>
                         <span style={{ color: '#111827', fontWeight: 500 }}>{value}</span>
                       </div>
                     ))}
-                    <div style={{ marginTop: 8, padding: '12px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#92400E', fontWeight: 600, fontSize: 13 }}>Contraseña</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
+                      <span style={{ color: '#6B7280', fontWeight: 600 }}>Contraseña</span>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: '#B45309', letterSpacing: '0.06em' }}>{created.password}</span>
                     </div>
                   </div>
@@ -296,7 +297,7 @@ export default function LicenciasScreen() {
       {/* ══ Panel lateral usuarios ══ */}
       {panelCliente && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ width: '100%', maxWidth: 400, background: '#fff', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, background: '#fff', display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `3px solid ${B}`, position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{panelCliente.nombre}</div>
