@@ -44,15 +44,15 @@ export async function getInventarios() {
 }
 
 export async function crearInventario({ nombre, sucursal, deposito, responsable, fecha_inicio, fecha_limite }) {
-  // Convertir DD/MM/YYYY → YYYY-MM-DD si viene en ese formato
   const toISO = d => {
     if (!d) return null
     if (d.includes('/')) { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd}` }
     return d
   }
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').maybeSingle()
   const { data, error } = await supabase
     .from('inventarios')
-    .insert({ nombre, sucursal, deposito, responsable, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
+    .insert({ nombre, sucursal, deposito, responsable, cliente_id: perfil.cliente_id, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
     .select().single()
   if (error) throw new Error(error.message)
   return data

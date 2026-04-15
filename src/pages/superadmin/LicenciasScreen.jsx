@@ -256,6 +256,7 @@ export default function LicenciasScreen() {
                   <button onClick={cerrarModalCrear} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280', lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Código de activación */}
                   <div style={{ background: '#D1FAE5', border: '1px solid #6EE7B7', padding: '16px 20px', textAlign: 'center' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.08em', marginBottom: 8 }}>CÓDIGO DE ACTIVACIÓN</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 32, fontWeight: 700, color: '#059669', letterSpacing: '0.12em' }}>
@@ -263,6 +264,15 @@ export default function LicenciasScreen() {
                     </div>
                   </div>
 
+                  {/* Contraseña del admin */}
+                  <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', padding: '16px 20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', letterSpacing: '0.08em', marginBottom: 8 }}>CONTRASEÑA DEL ADMIN</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, color: '#B45309', letterSpacing: '0.12em' }}>
+                      {created.password}
+                    </div>
+                  </div>
+
+                  {/* Datos del cliente */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {[
                       { label: 'Empresa',      value: created.cliente?.nombre },
@@ -274,10 +284,6 @@ export default function LicenciasScreen() {
                         <span style={{ color: '#111827', fontWeight: 500 }}>{value}</span>
                       </div>
                     ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
-                      <span style={{ color: '#6B7280', fontWeight: 600 }}>Contraseña</span>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: '#B45309', letterSpacing: '0.06em' }}>{created.password}</span>
-                    </div>
                   </div>
 
                   <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
@@ -315,20 +321,29 @@ export default function LicenciasScreen() {
               {!loadingU && usuarios.length === 0 && (
                 <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: 32 }}>Sin usuarios registrados</div>
               )}
-              {!loadingU && usuarios.map(u => {
+              {!loadingU && usuarios.map((u, idx) => {
                 const rs = ROL_COLOR[u.rol] || { bg: '#F3F4F6', c: '#6B7280' }
+                const esPrimero = idx === 0 && u.contrasena_inicial
                 return (
-                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
-                    <div style={{ width: 36, height: 36, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
+                  <div key={u.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
+                      <div style={{ width: 36, height: 36, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.nombre}</div>
+                        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                      </div>
+                      <div style={{ padding: '3px 8px', background: rs.bg, color: rs.c, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
+                        {ROL_LABEL[u.rol] || u.rol}
+                      </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.nombre}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
-                    </div>
-                    <div style={{ padding: '3px 8px', background: rs.bg, color: rs.c, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
-                      {ROL_LABEL[u.rol] || u.rol}
-                    </div>
+                    {esPrimero && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 12px 0', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Contraseña inicial</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 14, color: '#B45309', letterSpacing: '0.06em' }}>{u.contrasena_inicial}</span>
+                      </div>
+                    )}
                   </div>
                 )
               })}
