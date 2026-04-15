@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente } from '../../services/vendorService'
+import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente, resetPassword } from '../../services/vendorService'
 import { B, BL } from '../../constants/theme'
 
 const ROL_LABEL = { admin: 'Admin', contador: 'Contador', superadmin: 'Superadmin' }
@@ -39,7 +39,9 @@ export default function LicenciasScreen() {
   const [usuarios,     setUsuarios]     = useState([])
   const [loadingU,     setLoadingU]     = useState(false)
 
-  const [toggling, setToggling] = useState(null)
+  const [toggling,   setToggling]   = useState(null)
+  const [resetting,  setResetting]  = useState(null)  // user_id en proceso
+  const [resetResult, setResetResult] = useState({})  // { [user_id]: newPassword }
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('')
@@ -77,6 +79,16 @@ export default function LicenciasScreen() {
       })))
     } catch (e) { alert(e.message) }
     finally { setToggling(null) }
+  }
+
+  /* ── Reset contraseña ── */
+  const handleReset = async (userId) => {
+    setResetting(userId)
+    try {
+      const { password } = await resetPassword(userId)
+      setResetResult(prev => ({ ...prev, [userId]: password }))
+    } catch (e) { alert(e.message) }
+    finally { setResetting(null) }
   }
 
   /* ── Ver usuarios ── */
@@ -309,7 +321,7 @@ export default function LicenciasScreen() {
                 <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{panelCliente.nombre}</div>
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Usuarios del cliente</div>
               </div>
-              <button onClick={() => setPanelCliente(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>×</button>
+              <button onClick={() => { setPanelCliente(null); setResetResult({}) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>×</button>
             </div>
 
             <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
@@ -324,8 +336,11 @@ export default function LicenciasScreen() {
               {!loadingU && usuarios.map((u, idx) => {
                 const rs = ROL_COLOR[u.rol] || { bg: '#F3F4F6', c: '#6B7280' }
                 const esPrimero = idx === 0 && u.contrasena_inicial
+                const nuevaPass = resetResult[u.id]
+                const isResetting = resetting === u.id
                 return (
                   <div key={u.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    {/* Fila usuario */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
                       <div style={{ width: 36, height: 36, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
@@ -337,11 +352,34 @@ export default function LicenciasScreen() {
                       <div style={{ padding: '3px 8px', background: rs.bg, color: rs.c, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
                         {ROL_LABEL[u.rol] || u.rol}
                       </div>
+                      {/* Botón reset */}
+                      <button
+                        onClick={() => handleReset(u.id)}
+                        disabled={isResetting}
+                        title="Resetear contraseña"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#F3F4F6', border: '1px solid #E5E7EB', fontSize: 11, fontWeight: 600, color: '#374151', cursor: isResetting ? 'not-allowed' : 'pointer', opacity: isResetting ? 0.6 : 1, flexShrink: 0 }}
+                      >
+                        {isResetting
+                          ? <Spin size={11} color="#6B7280" />
+                          : <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                        }
+                        Reset
+                      </button>
                     </div>
-                    {esPrimero && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 12px 0', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+
+                    {/* Contraseña inicial (primer usuario) */}
+                    {esPrimero && !nuevaPass && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 10px 0', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Contraseña inicial</span>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 14, color: '#B45309', letterSpacing: '0.06em' }}>{u.contrasena_inicial}</span>
+                      </div>
+                    )}
+
+                    {/* Nueva contraseña tras reset */}
+                    {nuevaPass && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 10px 0', padding: '8px 12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Nueva contraseña</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 14, color: '#B45309', letterSpacing: '0.06em' }}>{nuevaPass}</span>
                       </div>
                     )}
                   </div>

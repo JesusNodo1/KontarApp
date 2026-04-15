@@ -21,7 +21,8 @@ async function vFetch(method, path = '', body) {
   return json
 }
 
-export const getLicencias       = ()                    => vFetch('GET')
-export const crearLicencia      = (data)                => vFetch('POST', '', data)
-export const toggleLicencia     = (licencia_id, activa) => vFetch('PATCH', '', { licencia_id, activa })
-export const getUsuariosCliente = (clienteId)           => vFetch('GET', `/${clienteId}/usuarios`)
+export const getLicencias        = ()                    => vFetch('GET')
+export const crearLicencia       = (data)                => vFetch('POST', '', data)
+export const toggleLicencia      = (licencia_id, activa) => vFetch('PATCH', '', { licencia_id, activa })
+export const getUsuariosCliente  = (clienteId)           => vFetch('GET', `/${clienteId}/usuarios`)
+export const resetPassword       = (user_id)             => vFetch('PATCH', '', { action: 'reset_password', user_id })

@@ -146,7 +146,9 @@ export async function toggleProducto(id, activo) {
 }
 
 export async function importarProductosCSV(rows) {
-  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').maybeSingle()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
   const items = rows
     .map(r => ({
       cliente_id:    perfil.cliente_id,
