@@ -49,7 +49,9 @@ export async function crearInventario({ nombre, sucursal, deposito, responsable,
     if (d.includes('/')) { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd}` }
     return d
   }
-  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').maybeSingle()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
   const { data, error } = await supabase
     .from('inventarios')
     .insert({ nombre, sucursal, deposito, responsable, cliente_id: perfil.cliente_id, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
@@ -121,7 +123,9 @@ export async function getProductosAdmin() {
 }
 
 export async function crearProductoAdmin({ sku, nombre, variante, codigo_barras }) {
-  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').maybeSingle()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
   const { data, error } = await supabase
     .from('productos')
     .insert({ sku, nombre, variante: variante || '', codigo_barras: codigo_barras || '', cliente_id: perfil.cliente_id })
