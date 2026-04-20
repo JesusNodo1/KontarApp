@@ -10,7 +10,8 @@ import AdminLayout      from './pages/admin/AdminLayout'
 import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
-import InventariosScreen from './pages/admin/InventariosScreen'
+import InventariosScreen  from './pages/admin/InventariosScreen'
+import SucursalesScreen  from './pages/admin/SucursalesScreen'
 import SuperadminLayout  from './pages/superadmin/SuperadminLayout'
 import LicenciasScreen   from './pages/superadmin/LicenciasScreen'
 
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="productos"   element={<ProductosScreen />} />
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />
+            <Route path="sucursales"  element={<SucursalesScreen />} />
           </Route>
 
           {/* Superadmin */}

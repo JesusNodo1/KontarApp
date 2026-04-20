@@ -173,6 +173,72 @@ export async function importarProductosCSV(rows) {
   return items.length
 }
 
+// ── Usuarios admin (para selector de responsable) ───────────
+export async function getAdmins() {
+  const { data } = await supabase
+    .from('perfiles')
+    .select('id, nombre')
+    .eq('rol', 'admin')
+    .order('nombre')
+  return data || []
+}
+
+// ── Sucursales ───────────────────────────────────────────────
+export async function getSucursales(soloActivas = true) {
+  let q = supabase.from('sucursales').select('id, nombre, activo').order('nombre')
+  if (soloActivas) q = q.eq('activo', true)
+  const { data } = await q
+  return data || []
+}
+
+export async function crearSucursal(nombre) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
+  const { data, error } = await supabase.from('sucursales').insert({ nombre, cliente_id: perfil.cliente_id }).select().single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function editarSucursal(id, nombre) {
+  const { data, error } = await supabase.from('sucursales').update({ nombre }).eq('id', id).select().single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function toggleSucursal(id, activo) {
+  const { error } = await supabase.from('sucursales').update({ activo }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ── Depósitos ────────────────────────────────────────────────
+export async function getDepositos(soloActivos = true) {
+  let q = supabase.from('depositos').select('id, nombre, activo').order('nombre')
+  if (soloActivos) q = q.eq('activo', true)
+  const { data } = await q
+  return data || []
+}
+
+export async function crearDeposito(nombre) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
+  const { data, error } = await supabase.from('depositos').insert({ nombre, cliente_id: perfil.cliente_id }).select().single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function editarDeposito(id, nombre) {
+  const { data, error } = await supabase.from('depositos').update({ nombre }).eq('id', id).select().single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function toggleDeposito(id, activo) {
+  const { error } = await supabase.from('depositos').update({ activo }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 // ── Usuarios (via Edge Function con service role) ────────────
 const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`
 

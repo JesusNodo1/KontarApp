@@ -3,6 +3,7 @@ import { B, BL, G, GL } from '../../constants/theme'
 import {
   getInventarios, crearInventario, cerrarInventario,
   getInventarioConteos, getInventarioDetalle, getZonaDetalle,
+  getSucursales, getDepositos, getAdmins,
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
@@ -25,6 +26,9 @@ export default function InventariosScreen() {
   const [saving,      setSaving]      = useState(false)
   const [errorMsg,    setErrorMsg]    = useState('')
   const [form, setForm] = useState({ nombre: '', sucursal: '', deposito: '', responsable: '', fecha_inicio: '', fecha_limite: '' })
+  const [sucursales,  setSucursales]  = useState([])
+  const [depositos,   setDepositos]   = useState([])
+  const [admins,      setAdmins]      = useState([])
 
   // ── detalle inventario ────────────────────────────────────────
   const [detalle,        setDetalle]        = useState(null)
@@ -38,8 +42,11 @@ export default function InventariosScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const data = await getInventarios()
+    const [data, sucs, deps, adms] = await Promise.all([getInventarios(), getSucursales(), getDepositos(), getAdmins()])
     setInventarios(data)
+    setSucursales(sucs)
+    setDepositos(deps)
+    setAdmins(adms)
     const counts = {}
     await Promise.all(data.map(async inv => {
       counts[inv.id] = await getInventarioConteos(inv.id)
@@ -391,25 +398,92 @@ export default function InventariosScreen() {
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>✕</button>
             </div>
             <form onSubmit={handleCrear} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { label: 'Nombre del inventario *', key: 'nombre',      ph: 'Ej: Inventario Agosto 2025' },
-                { label: 'Sucursal *',              key: 'sucursal',    ph: 'Ej: Sucursal Centro' },
-                { label: 'Depósito',                key: 'deposito',    ph: 'Ej: Depósito Central – Av. Corrientes' },
-                { label: 'Responsable',             key: 'responsable', ph: 'Ej: Lic. Marcos Díaz' },
-                { label: 'Fecha inicio',            key: 'fecha_inicio', type: 'date', ph: '' },
-                { label: 'Fecha límite',            key: 'fecha_limite', type: 'date', ph: '' },
-              ].map(({ label, key, ph, type }) => (
-                <div key={key}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>{label}</div>
+              {/* Nombre */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre del inventario *</div>
+                <input
+                  type="text" placeholder="Ej: Inventario Agosto 2025" value={form.nombre}
+                  onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                />
+              </div>
+
+              {/* Responsable dropdown */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Responsable</div>
+                <select
+                  value={form.responsable}
+                  onChange={e => setForm(f => ({ ...f, responsable: e.target.value }))}
+                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.responsable ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                >
+                  <option value="">Seleccioná un responsable...</option>
+                  {admins.map(a => <option key={a.id} value={a.nombre}>{a.nombre}</option>)}
+                </select>
+                {admins.length === 0 && (
+                  <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay usuarios admin registrados.</div>
+                )}
+              </div>
+
+              {/* Período — dos calendarios */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Fecha inicio</div>
                   <input
-                    type={type || 'text'} placeholder={ph} value={form[key]}
-                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                    style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB' }}
+                    type="date" value={form.fecha_inicio}
+                    onChange={e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))}
+                    style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 10px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box', cursor: 'pointer' }}
                     onFocus={e => e.target.style.borderColor = B}
                     onBlur={e => e.target.style.borderColor = '#E5E7EB'}
                   />
                 </div>
-              ))}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Fecha límite</div>
+                  <input
+                    type="date" value={form.fecha_limite}
+                    onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))}
+                    style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 10px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box', cursor: 'pointer' }}
+                    onFocus={e => e.target.style.borderColor = B}
+                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                  />
+                </div>
+              </div>
+
+              {/* Sucursal dropdown */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Sucursal *</div>
+                <select
+                  value={form.sucursal}
+                  onChange={e => setForm(f => ({ ...f, sucursal: e.target.value }))}
+                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.sucursal ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer' }}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                >
+                  <option value="">Seleccioná una sucursal...</option>
+                  {sucursales.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                </select>
+                {sucursales.length === 0 && (
+                  <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay sucursales cargadas. Agregá desde el menú Sucursales.</div>
+                )}
+              </div>
+
+              {/* Depósito dropdown */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Depósito</div>
+                <select
+                  value={form.deposito}
+                  onChange={e => setForm(f => ({ ...f, deposito: e.target.value }))}
+                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.deposito ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer' }}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                >
+                  <option value="">Sin depósito específico</option>
+                  {depositos.map(d => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
+                </select>
+              </div>
               {errorMsg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626' }}>✕ {errorMsg}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '13px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 14, color: '#374151', cursor: 'pointer' }}>Cancelar</button>

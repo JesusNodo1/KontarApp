@@ -9,6 +9,7 @@ import {
   finalizarInventario as dbFinalizarInventario,
   fmtFecha,
 } from '../../services/conteoService'
+import { getSucursales, getDepositos } from '../../services/adminService'
 import InventarioScreen from './InventarioScreen'
 import ZonasScreen      from './ZonasScreen'
 import ConteoScreen     from './ConteoScreen'
@@ -23,12 +24,14 @@ export default function CounterApp() {
   const [zonaActiva, setZonaActiva] = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
+  const [sucursales, setSucursales] = useState([])
+  const [depositos,  setDepositos]  = useState([])
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const deviceId = getDeviceId()
 
   // Ref para leer screen actual dentro del listener popstate sin stale closure
-  const screenRef   = useRef(screen)
+  const screenRef  = useRef(screen)
   // Evita que el efecto de persistencia borre sessionStorage en el primer render
   const didMountRef = useRef(false)
   useEffect(() => { screenRef.current = screen }, [screen])
@@ -37,7 +40,12 @@ export default function CounterApp() {
   const loadData = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const [invData, total] = await Promise.all([getInventarioActivo(), getTotalProductos()])
+      const [invData, total, sucs, deps] = await Promise.all([
+        getInventarioActivo(), getTotalProductos(),
+        getSucursales(), getDepositos(),
+      ])
+      setSucursales(sucs)
+      setDepositos(deps)
       if (invData) {
         setInv({ ...invData, total_productos: total, fecha_inicio: fmtFecha(invData.fecha_inicio), fecha_limite: fmtFecha(invData.fecha_limite) })
         const zonasData = await getZonas(invData.id)
@@ -56,7 +64,7 @@ export default function CounterApp() {
 
   /* ─── Caso 1: Restaurar posición tras recarga ────────────────────── */
   useEffect(() => {
-    if (loading) return
+    if (loading) return          // esperar a que carguen inv y zonas
     const saved = sessionStorage.getItem(POS_KEY)
     if (!saved) return
     try {
@@ -64,10 +72,11 @@ export default function CounterApp() {
       if (s === 'zonas') {
         setScreen('zonas')
       } else if (s === 'conteo' && zonaId) {
+        // zonas ya está cargado en este punto
         setZonas(prev => {
           const z = prev.find(z => z.id === zonaId)
           if (z) { setZonaActiva(z); setScreen('conteo') }
-          else     setScreen('zonas')
+          else     setScreen('zonas')   // zona ya no existe, ir a lista
           return prev
         })
       }
@@ -78,6 +87,8 @@ export default function CounterApp() {
 
   /* ─── Persistir posición en sessionStorage ───────────────────────── */
   useEffect(() => {
+    // Saltar el primer render: en ese momento screen='inventario' borraría
+    // el sessionStorage antes de que el efecto de restauración pueda leerlo
     if (!didMountRef.current) { didMountRef.current = true; return }
     if (screen === 'inventario') {
       sessionStorage.removeItem(POS_KEY)
@@ -99,6 +110,7 @@ export default function CounterApp() {
       } else if (cur === 'zonas') {
         setScreen('inventario')
       }
+      // Si ya está en 'inventario', el navegador sale del /contador normalmente
     }
     window.addEventListener('popstate', handlePop)
     return () => window.removeEventListener('popstate', handlePop)
@@ -111,6 +123,11 @@ export default function CounterApp() {
   }
   const goInicio = () => { setScreen('inventario'); loadData() }
   const goConteo = z => {
+    window.history.pushState({ kontar: 'conteo', zonaId: z.id }, '')
+    setZonaActiva(z); setScreen('conteo')
+  }
+  // Desde InventarioScreen: va directo a ConteoScreen con la zona seleccionada
+  const goConteoDesdeInicio = z => {
     window.history.pushState({ kontar: 'conteo', zonaId: z.id }, '')
     setZonaActiva(z); setScreen('conteo')
   }
@@ -180,7 +197,8 @@ export default function CounterApp() {
     return (
       <InventarioScreen
         inv={inv} zonas={zonas}
-        onEntrar={goZonas}
+        sucursales={sucursales} depositos={depositos}
+        onEntrar={goConteoDesdeInicio}
         user={user} deviceId={deviceId} onLogout={handleLogout}
       />
     )
@@ -200,7 +218,7 @@ export default function CounterApp() {
     return (
       <ConteoScreen
         zona={zonaActiva} inv={inv}
-        onBack={() => { goZonas(); loadData() }}
+        onBack={() => { goInicio() }}
         onZonaFinalizada={finZona}
         user={user}
       />
