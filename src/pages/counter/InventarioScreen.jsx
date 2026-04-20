@@ -45,7 +45,7 @@ function SelectRow({ icon, label, value, onChange, options, placeholder }) {
   )
 }
 
-export default function InventarioScreen({ inv, zonas, sucursales, depositos, onEntrar, user, deviceId, onLogout }) {
+export default function InventarioScreen({ inv, zonas, sucursales = [], depositos = [], onEntrar, user, deviceId, onLogout }) {
   const [menuOpen,   setMenuOpen]   = useState(false)
   const [sucursal,   setSucursal]   = useState(inv.sucursal || '')
   const [deposito,   setDeposito]   = useState(inv.deposito || '')
@@ -65,10 +65,19 @@ export default function InventarioScreen({ inv, zonas, sucursales, depositos, on
     label: z.finalizada ? `${z.nombre} ✓` : z.nombre,
   }))
 
-  const sucursalesOpts = sucursales.map(s => ({ value: s.nombre, label: s.nombre }))
-  const depositosOpts  = depositos.map(d => ({ value: d.nombre, label: d.nombre }))
+  // Asegurarse de que el valor actual del inventario siempre esté en las opciones
+  const sucursalesOpts = [
+    ...(inv.sucursal && !sucursales.find(s => s.nombre === inv.sucursal)
+      ? [{ value: inv.sucursal, label: inv.sucursal }] : []),
+    ...sucursales.map(s => ({ value: s.nombre, label: s.nombre })),
+  ]
+  const depositosOpts = [
+    ...(inv.deposito && !depositos.find(d => d.nombre === inv.deposito)
+      ? [{ value: inv.deposito, label: inv.deposito }] : []),
+    ...depositos.map(d => ({ value: d.nombre, label: d.nombre })),
+  ]
 
-  const puedeIniciar = zonaId !== ''
+  const puedeIniciar = sucursal !== '' && zonaId !== ''
 
   const handleIniciar = () => {
     if (!puedeIniciar) return
@@ -175,11 +184,16 @@ export default function InventarioScreen({ inv, zonas, sucursales, depositos, on
 
       {/* footer */}
       <div style={{ padding: '14px', paddingBottom: 'max(env(safe-area-inset-bottom),14px)', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
-        {!puedeIniciar && zonas.length === 0 && (
-          <div style={{ marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', textAlign: 'center' }}>
-            No hay zonas creadas. Pedile al administrador que agregue zonas.
-          </div>
-        )}
+        {!puedeIniciar && (() => {
+          const faltantes = []
+          if (!sucursal) faltantes.push('sucursal')
+          if (!zonaId)   faltantes.push(zonas.length === 0 ? 'zona (no hay zonas creadas)' : 'zona')
+          return (
+            <div style={{ marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', textAlign: 'center' }}>
+              Seleccioná: {faltantes.join(' · ')}
+            </div>
+          )
+        })()}
         <button
           onClick={handleIniciar}
           disabled={!puedeIniciar}
