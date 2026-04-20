@@ -133,8 +133,8 @@ export default function CounterApp() {
   }
 
   /* ─── Acciones ───────────────────────────────────────────────────── */
-  const crearZona = async (nombre, descripcion) => {
-    const z = await dbCrearZona(inv.id, nombre, descripcion)
+  const crearZona = async (nombre, descripcion, deposito_id = null) => {
+    const z = await dbCrearZona(inv.id, nombre, descripcion, deposito_id)
     setZonas(p => [...p, z])
     return z
   }
@@ -199,6 +199,7 @@ export default function CounterApp() {
         inv={inv} zonas={zonas}
         sucursales={sucursales} depositos={depositos}
         onEntrar={goConteoDesdeInicio}
+        onCrearZona={crearZona}
         user={user} deviceId={deviceId} onLogout={handleLogout}
       />
     )

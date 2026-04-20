@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { B, BL, G, GL } from '../../constants/theme'
 import ProgBar from '../../components/ProgBar'
+import Spinner from '../../components/Spinner'
 
 function InfoRow({ icon, label, value }) {
   return (
@@ -16,7 +17,7 @@ function InfoRow({ icon, label, value }) {
   )
 }
 
-function SelectRow({ icon, label, value, onChange, options, placeholder }) {
+function SelectRow({ icon, label, value, onChange, options, placeholder, disabled }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', borderBottom: '1px solid #F3F4F6' }}>
       <div style={{ width: 32, height: 32, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
@@ -27,12 +28,13 @@ function SelectRow({ icon, label, value, onChange, options, placeholder }) {
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
+          disabled={disabled}
           style={{
             width: '100%', height: 36, border: `2px solid ${value ? B : '#E5E7EB'}`,
             padding: '0 10px', fontSize: 13, fontWeight: 600,
             color: value ? '#111827' : '#9CA3AF',
-            background: value ? BL : '#F9FAFB',
-            appearance: 'none', cursor: 'pointer',
+            background: disabled ? '#F3F4F6' : value ? BL : '#F9FAFB',
+            appearance: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
           }}
         >
           <option value="">{placeholder}</option>
@@ -45,49 +47,83 @@ function SelectRow({ icon, label, value, onChange, options, placeholder }) {
   )
 }
 
-export default function InventarioScreen({ inv, zonas, sucursales = [], depositos = [], onEntrar, user, deviceId, onLogout }) {
-  const [menuOpen,   setMenuOpen]   = useState(false)
-  const [sucursal,   setSucursal]   = useState('')
-  const [deposito,   setDeposito]   = useState('')
-  const [zonaId,     setZonaId]     = useState('')
+export default function InventarioScreen({ inv, zonas, sucursales = [], depositos = [], onEntrar, onCrearZona, user, deviceId, onLogout }) {
+  const [menuOpen,    setMenuOpen]    = useState(false)
+  const [sucursal,    setSucursal]    = useState('')
+  const [deposito,    setDeposito]    = useState('')
+  const [zonaId,      setZonaId]      = useState('')
+
+  // modal nueva zona
+  const [modalZona,  setModalZona]  = useState(false)
+  const [nomZona,    setNomZona]    = useState('')
+  const [savingZona, setSavingZona] = useState(false)
+  const [errZona,    setErrZona]    = useState('')
 
   const handleSucursalChange = (val) => {
     setSucursal(val)
-    setDeposito('')   // resetear depósito al cambiar sucursal
+    setDeposito('')
+    setZonaId('')
+  }
+
+  const handleDepositoChange = (val) => {
+    setDeposito(val)
+    setZonaId('')
   }
 
   const contados    = zonas.reduce((s, z) => s + z.productos_contados, 0)
   const finalizadas = zonas.filter(z => z.finalizada).length
 
-  const stats = [
-    { label: 'Productos', value: inv.total_productos,              color: B, bg: BL },
-    { label: 'Contados',  value: contados,                         color: G, bg: GL },
-    { label: 'Zonas OK',  value: `${finalizadas}/${zonas.length}`, color: finalizadas === zonas.length && zonas.length > 0 ? G : B, bg: finalizadas === zonas.length && zonas.length > 0 ? GL : BL },
-  ]
+  // Objeto de la sucursal y depósito seleccionados
+  const sucursalObj = sucursales.find(s => s.nombre === sucursal)
+  const depositoObj = depositos.find(d => d.nombre === deposito)
 
-  const zonasOpts = zonas.map(z => ({
+  // Depósitos filtrados por sucursal
+  const depositosFiltrados = sucursalObj
+    ? depositos.filter(d => d.sucursal_id === sucursalObj.id)
+    : []
+
+  // Zonas filtradas por depósito seleccionado
+  const zonasFiltradas = depositoObj
+    ? zonas.filter(z => z.deposito_id === depositoObj.id)
+    : []
+
+  const sucursalesOpts = sucursales.map(s => ({ value: s.nombre, label: s.nombre }))
+  const depositosOpts  = depositosFiltrados.map(d => ({ value: d.nombre, label: d.nombre }))
+  const zonasOpts      = zonasFiltradas.map(z => ({
     value: String(z.id),
     label: z.finalizada ? `${z.nombre} ✓` : z.nombre,
   }))
 
-  // Sucursal seleccionada (objeto)
-  const sucursalObj = sucursales.find(s => s.nombre === sucursal)
-
-  // Depósitos filtrados por sucursal seleccionada
-  const depositosFiltrados = sucursalObj
-    ? depositos.filter(d => d.sucursal_id === sucursalObj.id)
-    : depositos
-
-  const sucursalesOpts = sucursales.map(s => ({ value: s.nombre, label: s.nombre }))
-  const depositosOpts  = depositosFiltrados.map(d => ({ value: d.nombre, label: d.nombre }))
-
-  const puedeIniciar = sucursal !== '' && zonaId !== ''
+  const puedeIniciar = sucursal !== '' && deposito !== '' && zonaId !== ''
 
   const handleIniciar = () => {
     if (!puedeIniciar) return
     const zona = zonas.find(z => String(z.id) === zonaId)
     if (zona) onEntrar(zona)
   }
+
+  const handleCrearZona = async e => {
+    e.preventDefault()
+    const nombre = nomZona.trim()
+    if (!nombre) { setErrZona('El nombre es obligatorio.'); return }
+    setSavingZona(true); setErrZona('')
+    try {
+      const nueva = await onCrearZona(nombre, '', depositoObj?.id || null)
+      setZonaId(String(nueva.id))
+      setModalZona(false)
+      setNomZona('')
+    } catch (err) {
+      setErrZona(err.message)
+    } finally {
+      setSavingZona(false)
+    }
+  }
+
+  const iconSuc  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  const iconDep  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={1} y={3} width={15} height={13}/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+  const iconCal  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={4} width={18} height={18}/><line x1={16} y1={2} x2={16} y2={6}/><line x1={8} y1={2} x2={8} y2={6}/><line x1={3} y1={10} x2={21} y2={10}/></svg>
+  const iconResp = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
+  const iconZona = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={3} width={18} height={18}/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
 
   return (
     <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -106,10 +142,7 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
             <div style={{ background: 'rgba(255,255,255,.22)', border: '1px solid rgba(255,255,255,.4)', padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               {inv.estado}
             </div>
-            <button
-              onClick={() => setMenuOpen(true)}
-              style={{ background: 'rgba(255,255,255,.18)', border: 'none', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-            >
+            <button onClick={() => setMenuOpen(true)} style={{ background: 'rgba(255,255,255,.18)', border: 'none', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="square">
                 <circle cx={12} cy={5}  r={1.2} fill="#fff" stroke="none"/>
                 <circle cx={12} cy={12} r={1.2} fill="#fff" stroke="none"/>
@@ -124,48 +157,58 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
 
       {/* info + selección */}
       <div style={{ margin: '0 14px', background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}` }}>
-        <SelectRow
-          icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
-          label="Sucursal"
-          value={sucursal}
-          onChange={handleSucursalChange}
-          options={sucursalesOpts}
-          placeholder="Seleccioná sucursal..."
-        />
-        <SelectRow
-          icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={1} y={3} width={15} height={13}/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>}
-          label="Depósito"
-          value={deposito}
-          onChange={setDeposito}
-          options={depositosOpts}
-          placeholder="Seleccioná depósito..."
-        />
-        <InfoRow
-          icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={4} width={18} height={18}/><line x1={16} y1={2} x2={16} y2={6}/><line x1={8} y1={2} x2={8} y2={6}/><line x1={3} y1={10} x2={21} y2={10}/></svg>}
-          label="Período" value={`${inv.fecha_inicio} → ${inv.fecha_limite}`}
-        />
-        <InfoRow
-          icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>}
-          label="Responsable" value={inv.responsable}
-        />
-        <SelectRow
-          icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={3} width={18} height={18}/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>}
-          label="Zona"
-          value={zonaId}
-          onChange={setZonaId}
-          options={zonasOpts}
-          placeholder={zonas.length === 0 ? 'Sin zonas disponibles' : 'Seleccioná zona...'}
-        />
-      </div>
 
-      {/* stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, margin: '12px 14px 0' }}>
-        {stats.map(({ label, value, color, bg }) => (
-          <div key={label} style={{ background: bg, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, border: `1px solid ${color}22` }}>
-            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 24, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#6B7280', textAlign: 'center' }}>{label}</div>
+        <SelectRow icon={iconSuc} label="Sucursal" value={sucursal} onChange={handleSucursalChange}
+          options={sucursalesOpts} placeholder="Seleccioná sucursal..." />
+
+        <SelectRow icon={iconDep} label="Depósito" value={deposito} onChange={handleDepositoChange}
+          options={depositosOpts} placeholder={sucursal ? 'Seleccioná depósito...' : 'Primero elegí sucursal'}
+          disabled={!sucursal} />
+
+        <InfoRow icon={iconCal}  label="Período"     value={`${inv.fecha_inicio} → ${inv.fecha_limite}`} />
+        <InfoRow icon={iconResp} label="Responsable" value={inv.responsable} />
+
+        {/* Zona — select + botón nueva zona */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px' }}>
+          <div style={{ width: 32, height: 32, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+            {iconZona}
           </div>
-        ))}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>Zona</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                value={zonaId}
+                onChange={e => setZonaId(e.target.value)}
+                disabled={!deposito}
+                style={{
+                  flex: 1, height: 36, border: `2px solid ${zonaId ? B : '#E5E7EB'}`,
+                  padding: '0 10px', fontSize: 13, fontWeight: 600,
+                  color: zonaId ? '#111827' : '#9CA3AF',
+                  background: !deposito ? '#F3F4F6' : zonaId ? BL : '#F9FAFB',
+                  appearance: 'none', cursor: !deposito ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <option value="">{deposito ? (zonasOpts.length === 0 ? 'Sin zonas — creá una' : 'Seleccioná zona...') : 'Primero elegí depósito'}</option>
+                {zonasOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button
+                onClick={() => { setNomZona(''); setErrZona(''); setModalZona(true) }}
+                disabled={!deposito}
+                title="Nueva zona"
+                style={{
+                  width: 36, height: 36, flexShrink: 0,
+                  background: deposito ? B : '#E5E7EB',
+                  border: 'none', cursor: deposito ? 'pointer' : 'not-allowed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square">
+                  <line x1={12} y1={5} x2={12} y2={19}/><line x1={5} y1={12} x2={19} y2={12}/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* progress */}
@@ -188,16 +231,17 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
 
       {/* footer */}
       <div style={{ padding: '14px', paddingBottom: 'max(env(safe-area-inset-bottom),14px)', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
-        {!puedeIniciar && (() => {
-          const faltantes = []
-          if (!sucursal) faltantes.push('sucursal')
-          if (!zonaId)   faltantes.push(zonas.length === 0 ? 'zona (no hay zonas creadas)' : 'zona')
-          return (
-            <div style={{ marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', textAlign: 'center' }}>
-              Seleccioná: {faltantes.join(' · ')}
-            </div>
-          )
-        })()}
+        {!puedeIniciar && (
+          <div style={{ marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', textAlign: 'center' }}>
+            {(() => {
+              const f = []
+              if (!sucursal) f.push('sucursal')
+              if (!deposito) f.push('depósito')
+              if (!zonaId)   f.push('zona')
+              return `Seleccioná: ${f.join(' · ')}`
+            })()}
+          </div>
+        )}
         <button
           onClick={handleIniciar}
           disabled={!puedeIniciar}
@@ -217,13 +261,44 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
         </button>
       </div>
 
+      {/* modal nueva zona */}
+      {modalZona && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 480, borderTop: `3px solid ${B}`, paddingBottom: 'max(env(safe-area-inset-bottom),16px)' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Nueva zona</div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Depósito: <strong>{deposito}</strong></div>
+              </div>
+              <button onClick={() => setModalZona(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>✕</button>
+            </div>
+            <form onSubmit={handleCrearZona} style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre de la zona *</div>
+                <input
+                  autoFocus
+                  value={nomZona}
+                  onChange={e => setNomZona(e.target.value)}
+                  placeholder="Ej: Góndola A, Cámara Fría, Depósito 1..."
+                  style={{ width: '100%', height: 44, border: `2px solid ${B}`, padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box' }}
+                />
+              </div>
+              {errZona && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '8px 12px', fontSize: 13, color: '#DC2626' }}>✕ {errZona}</div>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={() => setModalZona(false)} style={{ flex: 1, padding: '13px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 14, color: '#374151', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" disabled={savingZona} style={{ flex: 2, padding: '13px 0', background: savingZona ? `${B}99` : B, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: savingZona ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {savingZona ? <><Spinner /> Creando...</> : '✓ Crear zona'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* menu drawer */}
       {menuOpen && (
         <>
-          <div
-            onClick={() => setMenuOpen(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 40 }}
-          />
+          <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 40 }} />
           <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', zIndex: 50, borderTop: `3px solid ${B}`, paddingBottom: 'max(env(safe-area-inset-bottom),16px)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
               <div style={{ width: 36, height: 4, background: '#D1D5DB', borderRadius: 2 }} />
@@ -240,10 +315,7 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
               </div>
             </div>
             <div style={{ padding: '14px 20px 4px' }}>
-              <button
-                onClick={onLogout}
-                style={{ width: '100%', padding: '14px 0', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontWeight: 700, fontSize: 14, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
+              <button onClick={onLogout} style={{ width: '100%', padding: '14px 0', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontWeight: 700, fontSize: 14, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2.2} strokeLinecap="square">
                   <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                   <polyline points="16 17 21 12 16 7"/>
@@ -255,7 +327,6 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
           </div>
         </>
       )}
-
     </div>
   )
 }

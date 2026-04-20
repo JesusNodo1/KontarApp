@@ -28,12 +28,10 @@ export async function getTotalProductos() {
 /**
  * Zonas del inventario, con conteo de productos ya registrados
  */
-export async function getZonas(inventario_id) {
-  const { data: zonas } = await supabase
-    .from('zonas')
-    .select('*')
-    .eq('inventario_id', inventario_id)
-    .order('created_at')
+export async function getZonas(inventario_id, deposito_id = null) {
+  let q = supabase.from('zonas').select('*').eq('inventario_id', inventario_id).order('created_at')
+  if (deposito_id) q = q.eq('deposito_id', deposito_id)
+  const { data: zonas } = await q
 
   if (!zonas?.length) return []
 
@@ -58,10 +56,10 @@ export async function getZonas(inventario_id) {
 /**
  * Crear zona nueva
  */
-export async function crearZona(inventario_id, nombre, descripcion) {
+export async function crearZona(inventario_id, nombre, descripcion, deposito_id = null) {
   const { data, error } = await supabase
     .from('zonas')
-    .insert({ inventario_id, nombre: nombre.trim(), descripcion: descripcion.trim() })
+    .insert({ inventario_id, nombre: nombre.trim(), descripcion: descripcion?.trim() || '', deposito_id: deposito_id || null })
     .select()
     .single()
   if (error) throw new Error(error.message)
