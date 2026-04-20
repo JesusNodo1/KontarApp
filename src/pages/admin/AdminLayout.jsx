@@ -146,6 +146,7 @@ export default function AdminLayout() {
         <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
           <button
             onClick={() => setSideOpen(true)}
+            className="admin-menu-btn"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', color: '#374151' }}
           >
             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
@@ -167,6 +168,7 @@ export default function AdminLayout() {
       <style>{`
         @media (min-width: 768px) {
           .admin-sidebar-desktop { display: flex !important; }
+          .admin-menu-btn { display: none !important; }
         }
       `}</style>
     </div>

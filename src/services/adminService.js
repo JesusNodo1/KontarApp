@@ -271,3 +271,7 @@ export async function getUsuarios() {
 export async function crearUsuario({ email, password, nombre, rol }) {
   return edgeFetch('POST', { email, password, nombre, rol })
 }
+
+export async function cambiarPassword(userId, password) {
+  return edgeFetch('PATCH', { userId, password })
+}
