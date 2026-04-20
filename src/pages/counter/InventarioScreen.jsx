@@ -51,6 +51,11 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
   const [deposito,   setDeposito]   = useState(inv.deposito || '')
   const [zonaId,     setZonaId]     = useState('')
 
+  const handleSucursalChange = (val) => {
+    setSucursal(val)
+    setDeposito('')   // resetear depósito al cambiar sucursal
+  }
+
   const contados    = zonas.reduce((s, z) => s + z.productos_contados, 0)
   const finalizadas = zonas.filter(z => z.finalizada).length
 
@@ -65,16 +70,23 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
     label: z.finalizada ? `${z.nombre} ✓` : z.nombre,
   }))
 
-  // Asegurarse de que el valor actual del inventario siempre esté en las opciones
+  // Sucursal seleccionada (objeto)
+  const sucursalObj = sucursales.find(s => s.nombre === sucursal)
+
+  // Depósitos filtrados por sucursal seleccionada
+  const depositosFiltrados = sucursalObj
+    ? depositos.filter(d => d.sucursal_id === sucursalObj.id)
+    : depositos
+
   const sucursalesOpts = [
     ...(inv.sucursal && !sucursales.find(s => s.nombre === inv.sucursal)
       ? [{ value: inv.sucursal, label: inv.sucursal }] : []),
     ...sucursales.map(s => ({ value: s.nombre, label: s.nombre })),
   ]
   const depositosOpts = [
-    ...(inv.deposito && !depositos.find(d => d.nombre === inv.deposito)
+    ...(inv.deposito && !depositosFiltrados.find(d => d.nombre === inv.deposito)
       ? [{ value: inv.deposito, label: inv.deposito }] : []),
-    ...depositos.map(d => ({ value: d.nombre, label: d.nombre })),
+    ...depositosFiltrados.map(d => ({ value: d.nombre, label: d.nombre })),
   ]
 
   const puedeIniciar = sucursal !== '' && zonaId !== ''
@@ -124,7 +136,7 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
           icon={<svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
           label="Sucursal"
           value={sucursal}
-          onChange={setSucursal}
+          onChange={handleSucursalChange}
           options={sucursalesOpts}
           placeholder="Seleccioná sucursal..."
         />

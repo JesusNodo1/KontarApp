@@ -453,37 +453,49 @@ export default function InventariosScreen() {
               </div>
 
               {/* Sucursal dropdown */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Sucursal *</div>
-                <select
-                  value={form.sucursal}
-                  onChange={e => setForm(f => ({ ...f, sucursal: e.target.value }))}
-                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.sucursal ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer' }}
-                  onFocus={e => e.target.style.borderColor = B}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                >
-                  <option value="">Seleccioná una sucursal...</option>
-                  {sucursales.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
-                </select>
-                {sucursales.length === 0 && (
-                  <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay sucursales cargadas. Agregá desde el menú Sucursales.</div>
-                )}
-              </div>
+              {(() => {
+                const sucObj = sucursales.find(s => s.nombre === form.sucursal)
+                const depsFiltrados = sucObj ? depositos.filter(d => d.sucursal_id === sucObj.id) : []
+                return (
+                  <>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Sucursal *</div>
+                      <select
+                        value={form.sucursal}
+                        onChange={e => setForm(f => ({ ...f, sucursal: e.target.value, deposito: '' }))}
+                        style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.sucursal ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box' }}
+                        onFocus={e => e.target.style.borderColor = B}
+                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                      >
+                        <option value="">Seleccioná una sucursal...</option>
+                        {sucursales.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                      </select>
+                      {sucursales.length === 0 && (
+                        <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay sucursales. Agregá desde el menú Sucursales.</div>
+                      )}
+                    </div>
 
-              {/* Depósito dropdown */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Depósito</div>
-                <select
-                  value={form.deposito}
-                  onChange={e => setForm(f => ({ ...f, deposito: e.target.value }))}
-                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.deposito ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer' }}
-                  onFocus={e => e.target.style.borderColor = B}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                >
-                  <option value="">Sin depósito específico</option>
-                  {depositos.map(d => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
-                </select>
-              </div>
+                    {/* Depósito dropdown — filtrado por sucursal */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Depósito</div>
+                      <select
+                        value={form.deposito}
+                        onChange={e => setForm(f => ({ ...f, deposito: e.target.value }))}
+                        disabled={!form.sucursal}
+                        style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.deposito ? '#111827' : '#9CA3AF', background: form.sucursal ? '#F9FAFB' : '#F3F4F6', appearance: 'none', cursor: form.sucursal ? 'pointer' : 'not-allowed', boxSizing: 'border-box' }}
+                        onFocus={e => e.target.style.borderColor = B}
+                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                      >
+                        <option value="">{form.sucursal ? 'Sin depósito específico' : 'Seleccioná primero una sucursal'}</option>
+                        {depsFiltrados.map(d => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
+                      </select>
+                      {form.sucursal && depsFiltrados.length === 0 && (
+                        <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ Esta sucursal no tiene depósitos. Agregá desde el menú Sucursales.</div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
               {errorMsg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626' }}>✕ {errorMsg}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '13px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 14, color: '#374151', cursor: 'pointer' }}>Cancelar</button>

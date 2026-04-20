@@ -212,18 +212,19 @@ export async function toggleSucursal(id, activo) {
 }
 
 // ── Depósitos ────────────────────────────────────────────────
-export async function getDepositos(soloActivos = true) {
-  let q = supabase.from('depositos').select('id, nombre, activo').order('nombre')
-  if (soloActivos) q = q.eq('activo', true)
+export async function getDepositos(soloActivos = true, sucursalId = null) {
+  let q = supabase.from('depositos').select('id, nombre, activo, sucursal_id').order('nombre')
+  if (soloActivos)   q = q.eq('activo', true)
+  if (sucursalId)    q = q.eq('sucursal_id', sucursalId)
   const { data } = await q
   return data || []
 }
 
-export async function crearDeposito(nombre) {
+export async function crearDeposito(nombre, sucursalId = null) {
   const { data: { user } } = await supabase.auth.getUser()
   const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
-  const { data, error } = await supabase.from('depositos').insert({ nombre, cliente_id: perfil.cliente_id }).select().single()
+  const { data, error } = await supabase.from('depositos').insert({ nombre, cliente_id: perfil.cliente_id, sucursal_id: sucursalId || null }).select().single()
   if (error) throw new Error(error.message)
   return data
 }
