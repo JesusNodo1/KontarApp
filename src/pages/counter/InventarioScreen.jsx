@@ -47,8 +47,8 @@ function SelectRow({ icon, label, value, onChange, options, placeholder }) {
 
 export default function InventarioScreen({ inv, zonas, sucursales = [], depositos = [], onEntrar, user, deviceId, onLogout }) {
   const [menuOpen,   setMenuOpen]   = useState(false)
-  const [sucursal,   setSucursal]   = useState(inv.sucursal || '')
-  const [deposito,   setDeposito]   = useState(inv.deposito || '')
+  const [sucursal,   setSucursal]   = useState('')
+  const [deposito,   setDeposito]   = useState('')
   const [zonaId,     setZonaId]     = useState('')
 
   const handleSucursalChange = (val) => {
@@ -78,16 +78,8 @@ export default function InventarioScreen({ inv, zonas, sucursales = [], deposito
     ? depositos.filter(d => d.sucursal_id === sucursalObj.id)
     : depositos
 
-  const sucursalesOpts = [
-    ...(inv.sucursal && !sucursales.find(s => s.nombre === inv.sucursal)
-      ? [{ value: inv.sucursal, label: inv.sucursal }] : []),
-    ...sucursales.map(s => ({ value: s.nombre, label: s.nombre })),
-  ]
-  const depositosOpts = [
-    ...(inv.deposito && !depositosFiltrados.find(d => d.nombre === inv.deposito)
-      ? [{ value: inv.deposito, label: inv.deposito }] : []),
-    ...depositosFiltrados.map(d => ({ value: d.nombre, label: d.nombre })),
-  ]
+  const sucursalesOpts = sucursales.map(s => ({ value: s.nombre, label: s.nombre }))
+  const depositosOpts  = depositosFiltrados.map(d => ({ value: d.nombre, label: d.nombre }))
 
   const puedeIniciar = sucursal !== '' && zonaId !== ''
 
