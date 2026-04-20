@@ -3,14 +3,15 @@ import { supabase } from './supabase'
 /**
  * Inventario activo del cliente autenticado (el más reciente con estado 'abierto')
  */
-export async function getInventarioActivo() {
-  const { data } = await supabase
+export async function getInventarioActivo(deposito_id = null) {
+  let q = supabase
     .from('inventarios')
     .select('*')
     .eq('estado', 'abierto')
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+  if (deposito_id) q = q.eq('deposito_id', deposito_id)
+  const { data } = await q.maybeSingle()
   return data || null
 }
 

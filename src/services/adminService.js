@@ -43,7 +43,7 @@ export async function getInventarios() {
   return data || []
 }
 
-export async function crearInventario({ nombre, sucursal, deposito, responsable, fecha_inicio, fecha_limite }) {
+export async function crearInventario({ nombre, sucursal, deposito, deposito_id, responsable, fecha_inicio, fecha_limite }) {
   const toISO = d => {
     if (!d) return null
     if (d.includes('/')) { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd}` }
@@ -54,7 +54,7 @@ export async function crearInventario({ nombre, sucursal, deposito, responsable,
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
   const { data, error } = await supabase
     .from('inventarios')
-    .insert({ nombre, sucursal, deposito, responsable, cliente_id: perfil.cliente_id, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
+    .insert({ nombre, sucursal, deposito, deposito_id: deposito_id || null, responsable, cliente_id: perfil.cliente_id, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
     .select().single()
   if (error) throw new Error(error.message)
   return data

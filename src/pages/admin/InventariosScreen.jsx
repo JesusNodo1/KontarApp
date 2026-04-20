@@ -25,7 +25,7 @@ export default function InventariosScreen() {
   const [showModal,   setShowModal]   = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [errorMsg,    setErrorMsg]    = useState('')
-  const [form, setForm] = useState({ nombre: '', sucursal: '', deposito: '', responsable: '', fecha_inicio: '', fecha_limite: '' })
+  const [form, setForm] = useState({ nombre: '', sucursal: '', deposito: '', deposito_id: null, responsable: '', fecha_inicio: '', fecha_limite: '' })
   const [sucursales,  setSucursales]  = useState([])
   const [depositos,   setDepositos]   = useState([])
   const [admins,      setAdmins]      = useState([])
@@ -87,11 +87,19 @@ export default function InventariosScreen() {
   const handleCrear = async e => {
     e.preventDefault()
     if (!form.nombre || !form.sucursal) { setErrorMsg('Nombre y sucursal son obligatorios.'); return }
+
+    // Bloquear si ya hay un inventario abierto para esa sucursal
+    const yaAbierto = inventarios.find(i => i.estado === 'abierto' && i.sucursal === form.sucursal)
+    if (yaAbierto) {
+      setErrorMsg(`La sucursal "${form.sucursal}" ya tiene un inventario abierto: "${yaAbierto.nombre}". Cerralo antes de crear uno nuevo.`)
+      return
+    }
+
     setSaving(true); setErrorMsg('')
     try {
       await crearInventario(form)
       setShowModal(false)
-      setForm({ nombre: '', sucursal: '', deposito: '', responsable: '', fecha_inicio: '', fecha_limite: '' })
+      setForm({ nombre: '', sucursal: '', deposito: '', deposito_id: null, responsable: '', fecha_inicio: '', fecha_limite: '' })
       await loadData()
     } catch (e) {
       setErrorMsg(e.message)
@@ -462,7 +470,7 @@ export default function InventariosScreen() {
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Sucursal *</div>
                       <select
                         value={form.sucursal}
-                        onChange={e => setForm(f => ({ ...f, sucursal: e.target.value, deposito: '' }))}
+                        onChange={e => setForm(f => ({ ...f, sucursal: e.target.value, deposito: '', deposito_id: null }))}
                         style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.sucursal ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box' }}
                         onFocus={e => e.target.style.borderColor = B}
                         onBlur={e => e.target.style.borderColor = '#E5E7EB'}
@@ -480,7 +488,11 @@ export default function InventariosScreen() {
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Depósito</div>
                       <select
                         value={form.deposito}
-                        onChange={e => setForm(f => ({ ...f, deposito: e.target.value }))}
+                        onChange={e => {
+                          const nombre = e.target.value
+                          const dep = depsFiltrados.find(d => d.nombre === nombre)
+                          setForm(f => ({ ...f, deposito: nombre, deposito_id: dep?.id || null }))
+                        }}
                         disabled={!form.sucursal}
                         style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.deposito ? '#111827' : '#9CA3AF', background: form.sucursal ? '#F9FAFB' : '#F3F4F6', appearance: 'none', cursor: form.sucursal ? 'pointer' : 'not-allowed', boxSizing: 'border-box' }}
                         onFocus={e => e.target.style.borderColor = B}
