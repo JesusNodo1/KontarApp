@@ -7,13 +7,13 @@ const LS_KEY = 'kontar_selection'
 
 function InfoRow({ icon, label, value }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', borderBottom: '1px solid #F3F4F6' }}>
-      <div style={{ width: 32, height: 32, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderBottom: '1px solid #F3F4F6' }}>
+      <div style={{ width: 28, height: 28, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', lineHeight: 1.4 }}>{value}</div>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF' }}>{label}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{value}</div>
       </div>
     </div>
   )
@@ -21,19 +21,19 @@ function InfoRow({ icon, label, value }) {
 
 function SelectRow({ icon, label, value, onChange, options, placeholder, disabled }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px', borderBottom: '1px solid #F3F4F6' }}>
-      <div style={{ width: 32, height: 32, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderBottom: '1px solid #F3F4F6' }}>
+      <div style={{ width: 28, height: 28, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>{label}</div>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 3 }}>{label}</div>
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
           disabled={disabled}
           style={{
-            width: '100%', height: 36, border: `2px solid ${value ? B : '#E5E7EB'}`,
-            padding: '0 10px', fontSize: 13, fontWeight: 600,
+            width: '100%', height: 32, border: `2px solid ${value ? B : '#E5E7EB'}`,
+            padding: '0 8px', fontSize: 13, fontWeight: 600,
             color: value ? '#111827' : '#9CA3AF',
             background: disabled ? '#F3F4F6' : value ? BL : '#F9FAFB',
             appearance: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
@@ -161,24 +161,32 @@ export default function InventarioScreen({
   return (
     <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
-      {/* hero */}
-      <div style={{ background: B, padding: '16px 16px 28px', paddingTop: 'max(env(safe-area-inset-top),20px)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div style={{ background: 'rgba(255,255,255,.18)', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="square">
+      {/* hero — fila única compacta */}
+      <div style={{ background: B, padding: '10px 14px', paddingTop: 'max(env(safe-area-inset-top),10px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: 'rgba(255,255,255,.18)', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="square">
               <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
               <line x1={12} y1="22.08" x2={12} y2={12} />
             </svg>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {inv ? inv.nombre : 'Inventario'}
+            </div>
+            {inv?.descripcion && (
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.descripcion}</div>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {inv && (
-              <div style={{ background: 'rgba(255,255,255,.22)', border: '1px solid rgba(255,255,255,.4)', padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <div style={{ background: 'rgba(255,255,255,.22)', border: '1px solid rgba(255,255,255,.4)', padding: '3px 8px', fontSize: 10, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {inv.estado}
               </div>
             )}
-            <button onClick={() => setMenuOpen(true)} style={{ background: 'rgba(255,255,255,.18)', border: 'none', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="square">
+            <button onClick={() => setMenuOpen(true)} style={{ background: 'rgba(255,255,255,.18)', border: 'none', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="square">
                 <circle cx={12} cy={5}  r={1.2} fill="#fff" stroke="none"/>
                 <circle cx={12} cy={12} r={1.2} fill="#fff" stroke="none"/>
                 <circle cx={12} cy={19} r={1.2} fill="#fff" stroke="none"/>
@@ -186,16 +194,10 @@ export default function InventarioScreen({
             </button>
           </div>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1.25, marginBottom: inv?.descripcion ? 8 : 0 }}>
-          {inv ? inv.nombre : 'Inventario'}
-        </div>
-        {inv?.descripcion && (
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.82)', lineHeight: 1.6 }}>{inv.descripcion}</div>
-        )}
       </div>
 
       {/* selección + info */}
-      <div style={{ margin: '0 14px', background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}` }}>
+      <div style={{ margin: '0 12px', background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}` }}>
 
         <SelectRow icon={iconSuc} label="Sucursal" value={sucursal} onChange={handleSucursalChange}
           options={sucursalesOpts} placeholder="Seleccioná sucursal..." />
@@ -207,17 +209,17 @@ export default function InventarioScreen({
         {/* Estado del inventario según selección de depósito */}
         {deposito && (
           invLoading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px', borderBottom: '1px solid #F3F4F6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid #F3F4F6' }}>
               <Spinner />
-              <span style={{ fontSize: 13, color: '#6B7280' }}>Buscando inventario activo...</span>
+              <span style={{ fontSize: 12, color: '#6B7280' }}>Buscando inventario activo...</span>
             </div>
           ) : !inv ? (
-            <div style={{ padding: '12px 14px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="square" style={{ flexShrink: 0 }}>
+            <div style={{ padding: '8px 12px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="square" style={{ flexShrink: 0 }}>
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                 <line x1={12} y1={9} x2={12} y2={13}/><line x1={12} y1={17} x2={12.01} y2={17}/>
               </svg>
-              <span style={{ fontSize: 13, color: '#92400E', fontWeight: 500 }}>No hay inventario activo para este depósito</span>
+              <span style={{ fontSize: 12, color: '#92400E', fontWeight: 500 }}>No hay inventario activo para este depósito</span>
             </div>
           ) : (
             <>
@@ -225,19 +227,19 @@ export default function InventarioScreen({
               <InfoRow icon={iconResp} label="Responsable" value={inv.responsable} />
 
               {/* Zona */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '11px 14px' }}>
-                <div style={{ width: 32, height: 32, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px' }}>
+                <div style={{ width: 28, height: 28, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {iconZona}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>Zona</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 3 }}>Zona</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
                     <select
                       value={zonaId}
                       onChange={e => setZonaId(e.target.value)}
                       style={{
-                        flex: 1, height: 36, border: `2px solid ${zonaId ? B : '#E5E7EB'}`,
-                        padding: '0 10px', fontSize: 13, fontWeight: 600,
+                        flex: 1, height: 32, border: `2px solid ${zonaId ? B : '#E5E7EB'}`,
+                        padding: '0 8px', fontSize: 13, fontWeight: 600,
                         color: zonaId ? '#111827' : '#9CA3AF',
                         background: zonaId ? BL : '#F9FAFB',
                         appearance: 'none', cursor: 'pointer',
@@ -250,12 +252,12 @@ export default function InventarioScreen({
                       onClick={() => { setNomZona(''); setErrZona(''); setModalZona(true) }}
                       title="Nueva zona"
                       style={{
-                        width: 36, height: 36, flexShrink: 0,
+                        width: 32, height: 32, flexShrink: 0,
                         background: B, border: 'none', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                     >
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square">
+                      <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square">
                         <line x1={12} y1={5} x2={12} y2={19}/><line x1={5} y1={12} x2={19} y2={12}/>
                       </svg>
                     </button>
@@ -269,17 +271,19 @@ export default function InventarioScreen({
 
       {/* progress — solo si hay inventario */}
       {inv && !invLoading && (
-        <div style={{ margin: '12px 14px 0', background: '#fff', border: '1px solid #E5E7EB', padding: 14 }}>
-          <ProgBar value={contados} total={inv.total_productos} color={B} height={8} />
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonas finalizadas</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: finalizadas === zonas.length && zonas.length > 0 ? G : B, fontFamily: "'DM Mono',monospace" }}>
-                {finalizadas}/{zonas.length}
-              </span>
-            </div>
-            <div style={{ background: '#E5E7EB', height: 6 }}>
-              <div style={{ height: '100%', width: `${zonas.length ? Math.round(finalizadas / zonas.length * 100) : 0}%`, background: finalizadas === zonas.length && zonas.length > 0 ? G : B, transition: 'width .4s' }} />
+        <div style={{ margin: '8px 14px 0', background: '#fff', border: '1px solid #E5E7EB', padding: '10px 12px' }}>
+          <ProgBar value={contados} total={inv.total_productos} color={B} height={6} />
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Zonas finalizadas</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: finalizadas === zonas.length && zonas.length > 0 ? G : B, fontFamily: "'DM Mono',monospace" }}>
+                  {finalizadas}/{zonas.length}
+                </span>
+              </div>
+              <div style={{ background: '#E5E7EB', height: 5 }}>
+                <div style={{ height: '100%', width: `${zonas.length ? Math.round(finalizadas / zonas.length * 100) : 0}%`, background: finalizadas === zonas.length && zonas.length > 0 ? G : B, transition: 'width .4s' }} />
+              </div>
             </div>
           </div>
         </div>
