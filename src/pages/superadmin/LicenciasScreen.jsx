@@ -20,7 +20,7 @@ function fmtFecha(iso) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const FORM_VACIO = { nombre_empresa: '', email_admin: '', nombre_admin: '' }
+const FORM_VACIO = { nombre_empresa: '', email_admin: '', nombre_admin: '', nombre_sucursal: '', nombre_deposito: '' }
 
 export default function LicenciasScreen() {
   const [clientes,  setClientes]  = useState([])
@@ -222,15 +222,38 @@ export default function LicenciasScreen() {
                 </div>
 
                 <form onSubmit={handleCrear} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                  {/* Datos empresa */}
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF', borderBottom: '1px solid #F3F4F6', paddingBottom: 6 }}>Empresa</div>
                   {[
                     { key: 'nombre_empresa', label: 'NOMBRE DE LA EMPRESA *', placeholder: 'Ej: Supermercado López' },
-                    { key: 'email_admin',    label: 'EMAIL DEL ADMIN *',      placeholder: 'admin@empresa.com' },
+                    { key: 'email_admin',    label: 'EMAIL DEL ADMIN *',      placeholder: 'admin@empresa.com', type: 'email' },
                     { key: 'nombre_admin',   label: 'NOMBRE DEL ADMIN',       placeholder: 'Ej: Juan López' },
+                  ].map(({ key, label, placeholder, type = 'text' }) => (
+                    <div key={key}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
+                      <input
+                        type={type}
+                        value={form[key]}
+                        onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                        placeholder={placeholder}
+                        style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = B}
+                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                      />
+                    </div>
+                  ))}
+
+                  {/* Sucursal y depósito iniciales */}
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF', borderBottom: '1px solid #F3F4F6', paddingBottom: 6, marginTop: 4 }}>Sucursal y depósito inicial</div>
+                  {[
+                    { key: 'nombre_sucursal', label: 'NOMBRE DE LA SUCURSAL', placeholder: `Por defecto: nombre de la empresa` },
+                    { key: 'nombre_deposito', label: 'NOMBRE DEL DEPÓSITO',   placeholder: 'Por defecto: Principal' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
                       <input
-                        type={key === 'email_admin' ? 'email' : 'text'}
+                        type="text"
                         value={form[key]}
                         onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                         placeholder={placeholder}
@@ -287,9 +310,10 @@ export default function LicenciasScreen() {
                   {/* Datos del cliente */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {[
-                      { label: 'Empresa',      value: created.cliente?.nombre },
-                      { label: 'Nombre admin', value: form.nombre_admin?.trim() || 'Admin' },
-                      { label: 'Email admin',  value: created.email },
+                      { label: 'Empresa',    value: created.cliente?.nombre },
+                      { label: 'Admin',      value: `${form.nombre_admin?.trim() || 'Admin'} · ${created.email}` },
+                      { label: 'Sucursal',   value: created.sucursal?.nombre },
+                      { label: 'Depósito',   value: created.deposito?.nombre },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
                         <span style={{ color: '#6B7280', fontWeight: 600 }}>{label}</span>

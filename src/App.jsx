@@ -12,8 +12,9 @@ import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
-import SuperadminLayout  from './pages/superadmin/SuperadminLayout'
-import LicenciasScreen   from './pages/superadmin/LicenciasScreen'
+import SuperadminLayout   from './pages/superadmin/SuperadminLayout'
+import LicenciasScreen    from './pages/superadmin/LicenciasScreen'
+import SuperadminsScreen  from './pages/superadmin/SuperadminsScreen'
 
 export default function App() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
             }
           >
             <Route index element={<LicenciasScreen />} />
+            <Route path="superadmins" element={<SuperadminsScreen />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

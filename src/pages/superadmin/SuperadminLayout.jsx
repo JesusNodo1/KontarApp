@@ -33,24 +33,45 @@ export default function SuperadminLayout() {
         </div>
 
         <nav style={{ flex: 1, paddingTop: 8 }}>
-          <NavLink
-            to="/licencias"
-            style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '11px 16px', fontSize: 14, fontWeight: isActive ? 700 : 500,
-              color: isActive ? B : '#374151',
-              background: isActive ? BL : 'transparent',
-              borderLeft: isActive ? `3px solid ${B}` : '3px solid transparent',
-              textDecoration: 'none',
-            })}
-          >
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-              <rect x={2} y={7} width={20} height={14} rx={1}/>
-              <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
-              <line x1={12} y1={12} x2={12} y2={16}/><line x1={10} y1={14} x2={14} y2={14}/>
-            </svg>
-            Licencias
-          </NavLink>
+          {[
+            {
+              to: '/licencias',
+              label: 'Licencias',
+              icon: (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
+                  <rect x={2} y={7} width={20} height={14} rx={1}/>
+                  <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+                  <line x1={12} y1={12} x2={12} y2={16}/><line x1={10} y1={14} x2={14} y2={14}/>
+                </svg>
+              ),
+            },
+            {
+              to: '/licencias/superadmins',
+              label: 'Superadmins',
+              icon: (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              ),
+            },
+          ].map(({ to, label, icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/licencias'}
+              style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '11px 16px', fontSize: 14, fontWeight: isActive ? 700 : 500,
+                color: isActive ? B : '#374151',
+                background: isActive ? BL : 'transparent',
+                borderLeft: isActive ? `3px solid ${B}` : '3px solid transparent',
+                textDecoration: 'none',
+              })}
+            >
+              {icon}
+              {label}
+            </NavLink>
+          ))}
         </nav>
 
         <div style={{ borderTop: '1px solid #E5E7EB', padding: '14px 16px' }}>

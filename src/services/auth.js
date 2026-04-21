@@ -57,21 +57,42 @@ export async function login(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw new Error('Email o contraseña incorrectos.')
 
-  const { data: perfil, error: perfilError } = await supabase
+  // 1. Buscar en perfiles (admin / contador)
+  const { data: perfil } = await supabase
     .from('perfiles')
     .select('nombre, rol, cliente_id')
     .eq('id', data.user.id)
-    .single()
+    .maybeSingle()
 
-  if (perfilError || !perfil) throw new Error('No se encontró el perfil del usuario.')
-
-  return {
-    id:         data.user.id,
-    email:      data.user.email,
-    nombre:     perfil.nombre,
-    rol:        perfil.rol,
-    cliente_id: perfil.cliente_id,
+  if (perfil && perfil.rol !== 'superadmin') {
+    return {
+      id:         data.user.id,
+      email:      data.user.email,
+      nombre:     perfil.nombre,
+      rol:        perfil.rol,
+      cliente_id: perfil.cliente_id,
+    }
   }
+
+  // 2. Si no está en perfiles (o tiene rol superadmin en perfiles), verificar tabla superadmin por email
+  const { data: sadmin } = await supabase
+    .from('superadmin')
+    .select('nombre, activo')
+    .eq('email', data.user.email)
+    .maybeSingle()
+
+  if (sadmin && sadmin.activo) {
+    return {
+      id:         data.user.id,
+      email:      data.user.email,
+      nombre:     sadmin.nombre,
+      rol:        'superadmin',
+      cliente_id: null,
+    }
+  }
+
+  await supabase.auth.signOut()
+  throw new Error('No se encontró el perfil del usuario.')
 }
 
 /**
