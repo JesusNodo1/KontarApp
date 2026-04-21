@@ -72,7 +72,11 @@ export default function InventarioScreen({
       const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}')
       if (saved.sucursal) setSucursal(saved.sucursal)
       if (saved.deposito) setDeposito(saved.deposito)
-      if (saved.deposito_id) onDepositoSelect(saved.deposito_id)
+      // Solo recargar si el inventario de ese depósito NO está ya en memoria.
+      // Evita el flash de dimensiones al volver desde ConteoScreen.
+      if (saved.deposito_id && inv?.deposito_id !== saved.deposito_id) {
+        onDepositoSelect(saved.deposito_id)
+      }
       if (saved.zonaId) setZonaId(saved.zonaId)
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
