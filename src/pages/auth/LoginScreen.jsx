@@ -12,11 +12,11 @@ export default function LoginScreen() {
   const { user, signIn } = useAuth()
   const navigate = useNavigate()
 
-  const destino = rol => rol === 'admin' ? '/admin' : rol === 'superadmin' ? '/licencias' : '/contador'
+  const destino = rol => rol === 'admin' ? '/admin' : '/contador'
 
-  // Redirigir si ya hay sesión activa
+  // Redirigir si ya hay sesión activa (solo admin/contador)
   useEffect(() => {
-    if (user) navigate(destino(user.rol), { replace: true })
+    if (user && user.rol !== 'superadmin') navigate(destino(user.rol), { replace: true })
   }, [user])
 
   const handleSubmit = async e => {
@@ -25,11 +25,13 @@ export default function LoginScreen() {
     setError(''); setLoading(true)
     try {
       const userData = await login(email, password)
-      signIn(userData)
-      // Superadmin no necesita terminal activada
       if (userData.rol === 'superadmin') {
-        navigate('/licencias', { replace: true }); return
+        // Superadmin no puede acceder por aquí — cerrar sesión
+        await import('../../services/supabase').then(m => m.supabase.auth.signOut())
+        setError('Esta cuenta es de superadmin. Ingresá desde /licencias')
+        return
       }
+      signIn(userData)
       const activo = await checkTerminal()
       navigate(activo ? destino(userData.rol) : '/activate', { replace: true })
     } catch (err) {

@@ -4,7 +4,10 @@ import { useAuth } from '../context/AuthContext'
 export default function PrivateRoute({ children, requiredRole }) {
   const { user } = useAuth()
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    const dest = requiredRole === 'superadmin' ? '/licencias/login' : '/login'
+    return <Navigate to={dest} replace />
+  }
 
   if (requiredRole && user.rol !== requiredRole) {
     const dest = user.rol === 'admin' ? '/admin' : user.rol === 'superadmin' ? '/licencias' : '/contador'

@@ -12,9 +12,10 @@ import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
-import SuperadminLayout   from './pages/superadmin/SuperadminLayout'
-import LicenciasScreen    from './pages/superadmin/LicenciasScreen'
-import SuperadminsScreen  from './pages/superadmin/SuperadminsScreen'
+import SuperadminLayout       from './pages/superadmin/SuperadminLayout'
+import LicenciasScreen        from './pages/superadmin/LicenciasScreen'
+import SuperadminsScreen      from './pages/superadmin/SuperadminsScreen'
+import SuperadminLoginScreen  from './pages/superadmin/SuperadminLoginScreen'
 
 export default function App() {
   return (
@@ -57,7 +58,10 @@ export default function App() {
             <Route path="sucursales"  element={<SucursalesScreen />} />
           </Route>
 
-          {/* Superadmin */}
+          {/* Superadmin login (público) */}
+          <Route path="/licencias/login" element={<SuperadminLoginScreen />} />
+
+          {/* Superadmin panel (protegido) */}
           <Route
             path="/licencias"
             element={
