@@ -9,6 +9,27 @@ import ModalBusqueda from './ModalBusqueda'
 
 const sl = ms => new Promise(r => setTimeout(r, ms))
 
+function playBeep(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain); gain.connect(ctx.destination)
+    if (type === 'ok') {
+      osc.type = 'sine'; osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.25, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
+    } else {
+      osc.type = 'sawtooth'; osc.frequency.value = 260
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28)
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.28)
+    }
+    osc.onended = () => ctx.close()
+  } catch {}
+}
+
 export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user }) {
   const [sub,        setSub]        = useState('conteo')
   const [modo,       setModo]       = useState('total')
@@ -31,6 +52,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [camLast,    setCamLast]    = useState(null)
   const [eId,        setEId]        = useState(null)
   const [eVal,       setEVal]       = useState('')
+  const [dupWarning, setDupWarning] = useState(null)  // { prod, existente, nueva }
 
   const vidRef     = useRef(null)
   const rdrRef     = useRef(null)
@@ -89,6 +111,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     if (!cod?.trim()) return
     const p = await bxCod(cod.trim())
     if (!p) {
+      playBeep('err')
       cerrarCam()
       setMCodInicial(cod.trim()); setMOpen(true)
       return
@@ -101,7 +124,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       // Unitario: +1 directo, cámara sigue abierta
       setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
       await reg(p, 1, true)
-      tFlash()
+      playBeep('ok'); tFlash()
     }
   }
 
@@ -169,17 +192,33 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     setBuscando(true); setNoEnc(false)
     const p = await bxCod(cod)
     setBuscando(false)
-    if (!p) { setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
+    if (!p) { playBeep('err'); setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
     // Unitario → +1 directo; Total → muestra tarjeta para ingresar cantidad exacta
-    if (modo === 'unitario') { await sl(120); await reg(p, 1, true); tFlash(); setQuery(''); inpRef.current?.focus() }
+    if (modo === 'unitario') { await sl(120); await reg(p, 1, true); playBeep('ok'); tFlash(); setQuery(''); inpRef.current?.focus() }
     else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
 
   const handleConf = async () => {
     if (!prod || cantidad < 1) return
+    const existing = conteosRef.current.find(x => x.producto_id === prod.id)
+    if (existing) {
+      // Ya tiene conteo en esta zona → advertencia antes de sumar
+      setDupWarning({ prod, existente: existing.cantidad, nueva: cantidad })
+      return
+    }
     setConfirming(true)
-    await reg(prod, cantidad, false) // total: reemplaza la cantidad, no acumula
-    tFlash()
+    await reg(prod, cantidad, false)
+    playBeep('ok'); tFlash()
+    setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
+    inpRef.current?.focus()
+  }
+
+  const handleSumarDup = async () => {
+    const { prod: p, existente, nueva } = dupWarning
+    setDupWarning(null)
+    setConfirming(true)
+    await reg(p, existente + nueva, false)
+    playBeep('ok'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
     inpRef.current?.focus()
   }
@@ -196,7 +235,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   /* ── selección desde modal ── */
   const handleSelModal = async (p, cant = 1, esNuevo = false) => {
     if (esNuevo) {
-      await reg(p, cant); tFlash()
+      await reg(p, cant); playBeep('ok'); tFlash()
       setMOpen(false); setProd(null); setQuery(''); setCantidad(1)
       inpRef.current?.focus(); return
     }
@@ -223,17 +262,54 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   if (loadingC) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F3F4F6' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F3F4F6' }}>
         <div className="spin" style={{ width: 24, height: 24, border: '3px solid #E5E7EB', borderTopColor: B, borderRadius: '50%' }} />
       </div>
     )
   }
 
   return (
-    <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#F3F4F6', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {flash && <div className="flash" />}
       {camO  && <ModalCam vidRef={vidRef} camR={camR} camE={camE} onCerrar={cerrarCam} lastScan={camLast} />}
       {mOpen && <ModalBusqueda onSeleccionar={handleSelModal} onCerrar={() => { setMOpen(false); setMCodInicial('') }} codigoInicial={mCodInicial} />}
+
+      {/* ── Modal advertencia conteo duplicado ── */}
+      {dupWarning && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setDupWarning(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+          <div style={{ position: 'relative', background: '#fff', padding: '20px 16px', paddingBottom: 'max(env(safe-area-inset-bottom),20px)', borderTop: '3px solid #F59E0B' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="square"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#92400E' }}>Producto ya contado en esta zona</div>
+            </div>
+            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16, paddingLeft: 26 }}>
+              {dupWarning.prod.nombre}{dupWarning.prod.variante ? ` — ${dupWarning.prod.variante}` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[
+                { label: 'Conteo actual', value: dupWarning.existente, color: B, bg: BL },
+                { label: 'Cantidad nueva', value: dupWarning.nueva, color: '#D97706', bg: '#FFFBEB' },
+                { label: 'Total sumado', value: dupWarning.existente + dupWarning.nueva, color: G, bg: GL },
+              ].map(({ label, value, color, bg }) => (
+                <div key={label} style={{ flex: 1, background: bg, padding: '10px 6px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 24, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3, lineHeight: 1.3 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDupWarning(null)} style={{ flex: 1, padding: '14px 0', background: '#F3F4F6', border: 'none', fontWeight: 700, fontSize: 13, color: '#374151', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Cancelar
+              </button>
+              <button onClick={handleSumarDup} style={{ flex: 2, padding: '14px 0', background: G, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                Sumar · {dupWarning.existente + dupWarning.nueva} uds.
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 14px', paddingTop: 'max(env(safe-area-inset-top),12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
