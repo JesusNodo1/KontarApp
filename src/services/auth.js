@@ -57,12 +57,22 @@ export async function login(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw new Error('Email o contraseña incorrectos.')
 
-  // 1. Buscar en perfiles (admin / contador)
+  // 1. Buscar en perfiles (admin / contador / soporte)
   const { data: perfil } = await supabase
     .from('perfiles')
     .select('nombre, rol, cliente_id')
     .eq('id', data.user.id)
     .maybeSingle()
+
+  if (perfil && perfil.rol === 'soporte') {
+    return {
+      id:         data.user.id,
+      email:      data.user.email,
+      nombre:     perfil.nombre,
+      rol:        'soporte',
+      cliente_id: null,
+    }
+  }
 
   if (perfil && perfil.rol !== 'superadmin') {
     return {

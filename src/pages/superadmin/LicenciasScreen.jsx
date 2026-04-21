@@ -265,7 +265,7 @@ export default function LicenciasScreen() {
                   ))}
 
                   <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', fontSize: 13, color: '#166534' }}>
-                    ✓ Se generará un código de activación y contraseña aleatorios. Aparecerán al finalizar.
+                    ✓ Se generará un código de activación y contraseña aleatorios. También se creará automáticamente el usuario de soporte (<strong>SoporteNodo</strong>) vinculado a este cliente.
                   </div>
 
                   {formErr && (
@@ -322,8 +322,27 @@ export default function LicenciasScreen() {
                     ))}
                   </div>
 
+                  {/* Usuario soporte */}
+                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '14px 16px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Usuario Soporte (SoporteNodo)
+                    </div>
+                    {[
+                      { label: 'Email',      value: created.soporte_email || 'jnunez@nodoinformatica.com.py' },
+                      { label: 'Contraseña', value: '12345' },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid #DBEAFE' }}>
+                        <span style={{ color: '#3B82F6', fontWeight: 600 }}>{label}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: '#1D4ED8' }}>{value}</span>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 11, color: '#60A5FA', marginTop: 8 }}>
+                      ✓ Vinculado automáticamente a <strong>{created.cliente?.nombre}</strong>
+                    </div>
+                  </div>
+
                   <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
-                    Guardá esta contraseña — no se vuelve a mostrar
+                    Guardá estas credenciales — no se vuelven a mostrar
                   </div>
 
                   <button onClick={cerrarModalCrear} style={{ padding: '13px 0', background: B, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}>

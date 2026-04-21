@@ -12,6 +12,9 @@ import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
+import SoporteSelectScreen from './pages/soporte/SoporteSelectScreen'
+import SoporteLayout      from './pages/soporte/SoporteLayout'
+import SoporteScreen      from './pages/soporte/SoporteScreen'
 import SuperadminLayout       from './pages/superadmin/SuperadminLayout'
 import LicenciasScreen        from './pages/superadmin/LicenciasScreen'
 import SuperadminsScreen      from './pages/superadmin/SuperadminsScreen'
@@ -56,6 +59,16 @@ export default function App() {
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />
             <Route path="sucursales"  element={<SucursalesScreen />} />
+          </Route>
+
+          {/* Soporte */}
+          <Route path="/soporte/select" element={
+            <PrivateRoute requiredRole="soporte"><SoporteSelectScreen /></PrivateRoute>
+          } />
+          <Route path="/soporte" element={
+            <PrivateRoute requiredRole="soporte"><SoporteLayout /></PrivateRoute>
+          }>
+            <Route index element={<SoporteScreen />} />
           </Route>
 
           {/* Superadmin login (público) */}

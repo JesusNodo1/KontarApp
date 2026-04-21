@@ -31,6 +31,10 @@ export default function LoginScreen() {
         setError('Esta cuenta es de superadmin. Ingresá desde /licencias')
         return
       }
+      if (userData.rol === 'soporte') {
+        signIn(userData)
+        navigate('/soporte/select', { replace: true }); return
+      }
       signIn(userData)
       const activo = await checkTerminal()
       navigate(activo ? destino(userData.rol) : '/activate', { replace: true })

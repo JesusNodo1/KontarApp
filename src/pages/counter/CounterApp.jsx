@@ -11,7 +11,6 @@ import {
 } from '../../services/conteoService'
 import { getSucursales, getDepositos } from '../../services/adminService'
 import InventarioScreen from './InventarioScreen'
-import ZonasScreen      from './ZonasScreen'
 import ConteoScreen     from './ConteoScreen'
 import { B } from '../../constants/theme'
 
@@ -35,7 +34,7 @@ export default function CounterApp() {
   const didMountRef = useRef(false)
   useEffect(() => { screenRef.current = screen }, [screen])
 
-  /* ─── Carga inicial: solo sucursales y depósitos ─────────────── */
+  /* ─── Carga inicial: sucursales y depósitos ──────────────────── */
   const loadData = useCallback(async () => {
     setLoading(true); setError('')
     try {
@@ -52,8 +51,13 @@ export default function CounterApp() {
   useEffect(() => { loadData() }, [loadData])
 
   /* ─── Cargar inventario por depósito ─────────────────────────── */
-  const loadInventario = useCallback(async (deposito_id) => {
-    if (!deposito_id) { setInv(null); setZonas([]); return }
+  // onComplete(inv, zonas) se llama al terminar — usado para restaurar posición tras recarga
+  const loadInventario = useCallback(async (deposito_id, onComplete = null) => {
+    if (!deposito_id) {
+      setInv(null); setZonas([])
+      if (onComplete) onComplete(null, [])
+      return
+    }
     setInvLoading(true)
     setInv(null)
     setZonas([])
@@ -63,18 +67,28 @@ export default function CounterApp() {
         getTotalProductos(),
       ])
       if (invData) {
-        setInv({ ...invData, total_productos: total, fecha_inicio: fmtFecha(invData.fecha_inicio), fecha_limite: fmtFecha(invData.fecha_limite) })
+        const newInv = {
+          ...invData,
+          total_productos: total,
+          fecha_inicio:    fmtFecha(invData.fecha_inicio),
+          fecha_limite:    fmtFecha(invData.fecha_limite),
+        }
+        setInv(newInv)
         const zonasData = await getZonas(invData.id, deposito_id)
         setZonas(zonasData)
+        if (onComplete) onComplete(newInv, zonasData)
+      } else {
+        if (onComplete) onComplete(null, [])
       }
     } catch (e) {
       console.error('Error al cargar inventario:', e.message)
+      if (onComplete) onComplete(null, [])
     } finally {
       setInvLoading(false)
     }
   }, [])
 
-  /* ─── Refrescar zonas (al volver de ConteoScreen) ────────────── */
+  /* ─── Refrescar zonas ────────────────────────────────────────── */
   const refreshZonas = useCallback(async () => {
     if (!inv) return
     const zonasData = await getZonas(inv.id, inv.deposito_id)
@@ -87,17 +101,18 @@ export default function CounterApp() {
     const saved = sessionStorage.getItem(POS_KEY)
     if (!saved) return
     try {
-      const { screen: s, zonaId } = JSON.parse(saved)
-      if (s === 'zonas') {
-        setScreen('zonas')
-      } else if (s === 'conteo' && zonaId) {
-        setZonas(prev => {
-          const z = prev.find(z => z.id === zonaId)
-          if (z) { setZonaActiva(z); setScreen('conteo') }
-          else     setScreen('zonas')
-          return prev
-        })
+      const { screen: s, zonaId, depositoId } = JSON.parse(saved)
+      // Sin depositoId no podemos recargar el inventario → quedarse en inicio
+      if (!depositoId || s !== 'conteo' || !zonaId) {
+        sessionStorage.removeItem(POS_KEY); return
       }
+      // Cargamos el inventario y en el callback — cuando los datos ya están listos —
+      // restauramos la zona y la pantalla de conteo
+      loadInventario(depositoId, (loadedInv, loadedZonas) => {
+        if (!loadedInv) return
+        const z = loadedZonas.find(z => z.id === zonaId)
+        if (z) { setZonaActiva(z); setScreen('conteo') }
+      })
     } catch {
       sessionStorage.removeItem(POS_KEY)
     }
@@ -108,45 +123,38 @@ export default function CounterApp() {
     if (!didMountRef.current) { didMountRef.current = true; return }
     if (screen === 'inventario') {
       sessionStorage.removeItem(POS_KEY)
-    } else {
+    } else if (screen === 'conteo' && inv && zonaActiva) {
       sessionStorage.setItem(POS_KEY, JSON.stringify({
         screen,
-        zonaId: zonaActiva?.id ?? null,
+        zonaId:     zonaActiva.id,
+        depositoId: inv.deposito_id,
       }))
     }
-  }, [screen, zonaActiva])
+  }, [screen, zonaActiva, inv])
 
   /* ─── Botón atrás del navegador ─────────────────────────────── */
   useEffect(() => {
     const handlePop = () => {
-      const cur = screenRef.current
-      if (cur === 'conteo') {
+      if (screenRef.current === 'conteo') {
         setZonaActiva(null)
-        setScreen('zonas')
-      } else if (cur === 'zonas') {
         setScreen('inventario')
+        refreshZonas()
       }
     }
     window.addEventListener('popstate', handlePop)
     return () => window.removeEventListener('popstate', handlePop)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ─── Navegación interna ─────────────────────────────────────── */
-  const goZonas  = () => {
-    window.history.pushState({ kontar: 'zonas' }, '')
-    setScreen('zonas'); setZonaActiva(null)
-  }
-  const goInicio = async () => {
-    setScreen('inventario')
-    await refreshZonas()
-  }
+  /* ─── Navegación ─────────────────────────────────────────────── */
   const goConteo = z => {
     window.history.pushState({ kontar: 'conteo', zonaId: z.id }, '')
     setZonaActiva(z); setScreen('conteo')
   }
-  const goConteoDesdeInicio = z => {
-    window.history.pushState({ kontar: 'conteo', zonaId: z.id }, '')
-    setZonaActiva(z); setScreen('conteo')
+
+  const goInicio = () => {
+    setZonaActiva(null)
+    setScreen('inventario')
+    refreshZonas()
   }
 
   /* ─── Acciones ───────────────────────────────────────────────── */
@@ -167,14 +175,12 @@ export default function CounterApp() {
       if (!confirm('Hay zonas sin finalizar. ¿Querés cerrar el inventario de todas formas?')) return
     }
     await dbFinalizarInventario(inv.id)
-    setInv(null)
-    setZonas([])
+    setInv(null); setZonas([])
   }
 
   const handleLogout = async () => {
     sessionStorage.removeItem(POS_KEY)
-    await doLogout()
-    signOut()
+    await doLogout(); signOut()
     navigate('/login', { replace: true })
   }
 
@@ -192,39 +198,25 @@ export default function CounterApp() {
     </div>
   )
 
-  if (screen === 'inventario')
-    return (
-      <InventarioScreen
-        inv={inv} invLoading={invLoading} zonas={zonas}
-        sucursales={sucursales} depositos={depositos}
-        onDepositoSelect={loadInventario}
-        onEntrar={goConteoDesdeInicio}
-        onCrearZona={crearZona}
-        onFinalizarInventario={handleFinalizarInventario}
-        user={user} deviceId={deviceId} onLogout={handleLogout}
-      />
-    )
-
-  if (screen === 'zonas')
-    return (
-      <ZonasScreen
-        inv={inv} zonas={zonas}
-        onBack={goInicio}
-        onZonaSelect={goConteo}
-        onCrearZona={crearZona}
-        onFinalizarInventario={handleFinalizarInventario}
-      />
-    )
-
   if (screen === 'conteo' && zonaActiva)
     return (
       <ConteoScreen
         zona={zonaActiva} inv={inv}
-        onBack={() => { goInicio() }}
+        onBack={goInicio}
         onZonaFinalizada={finZona}
         user={user}
       />
     )
 
-  return null
+  return (
+    <InventarioScreen
+      inv={inv} invLoading={invLoading} zonas={zonas}
+      sucursales={sucursales} depositos={depositos}
+      onDepositoSelect={loadInventario}
+      onEntrar={goConteo}
+      onCrearZona={crearZona}
+      onFinalizarInventario={handleFinalizarInventario}
+      user={user} deviceId={deviceId} onLogout={handleLogout}
+    />
+  )
 }
