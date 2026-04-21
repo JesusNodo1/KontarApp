@@ -163,10 +163,10 @@ export default function InventarioScreen({
   const iconZona = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={3} width={18} height={18}/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
 
   return (
-    <div style={{ background: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#F3F4F6', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* hero — fila única compacta */}
-      <div style={{ background: B, padding: '10px 14px', paddingTop: 'max(env(safe-area-inset-top),10px)' }}>
+      <div style={{ background: B, padding: '10px 14px', paddingTop: 'max(env(safe-area-inset-top),10px)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ background: 'rgba(255,255,255,.18)', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="square">
@@ -199,6 +199,9 @@ export default function InventarioScreen({
           </div>
         </div>
       </div>
+
+      {/* área de contenido con scroll interno */}
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
       {/* selección + info */}
       <div style={{ margin: '0 12px', background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}` }}>
@@ -293,27 +296,29 @@ export default function InventarioScreen({
         </div>
       )}
 
-      <div style={{ flex: 1 }} />
+      </div>{/* fin área de scroll */}
 
-      {/* footer */}
-      <div style={{ padding: '14px', paddingBottom: 'max(env(safe-area-inset-bottom),14px)', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
-        {!puedeIniciar && (
-          <div style={{ marginBottom: 10, padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', textAlign: 'center' }}>
-            {(() => {
-              if (!sucursal) return 'Seleccioná una sucursal'
-              if (!deposito) return 'Seleccioná un depósito'
-              if (invLoading) return 'Buscando inventario...'
-              if (!inv) return 'No hay inventario activo para este depósito'
-              if (!zonaId) return 'Seleccioná una zona'
-              return ''
-            })()}
-          </div>
-        )}
+      {/* footer — fijo al fondo, altura estable */}
+      <div style={{ flexShrink: 0, padding: '10px 14px', paddingBottom: 'max(env(safe-area-inset-bottom),10px)', borderTop: '1px solid #E5E7EB', background: '#fff' }}>
+        {/* aviso siempre presente (visibility) para que el footer no cambie de altura */}
+        <div style={{
+          marginBottom: 8, padding: '7px 12px',
+          background: '#FFFBEB', border: '1px solid #FDE68A',
+          fontSize: 12, color: '#92400E', textAlign: 'center',
+          visibility: puedeIniciar ? 'hidden' : 'visible',
+        }}>
+          {!sucursal ? 'Seleccioná una sucursal'
+            : !deposito ? 'Seleccioná un depósito'
+            : invLoading ? 'Buscando inventario...'
+            : !inv ? 'No hay inventario activo para este depósito'
+            : !zonaId ? 'Seleccioná una zona'
+            : ''}
+        </div>
         <button
           onClick={handleIniciar}
           disabled={!puedeIniciar}
           style={{
-            width: '100%', padding: '17px 0',
+            width: '100%', padding: '15px 0',
             background: puedeIniciar ? B : '#D1D5DB',
             color: '#fff', border: 'none', fontWeight: 700, fontSize: 16,
             letterSpacing: '0.04em', textTransform: 'uppercase',
