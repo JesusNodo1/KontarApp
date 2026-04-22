@@ -92,6 +92,38 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       .finally(() => setLoadingC(false))
   }, [zona.id])
 
+  // Wake Lock: mantener la pantalla del colector encendida durante el conteo
+  useEffect(() => {
+    let wakeLock = null
+    let released = false
+    const request = async () => {
+      try {
+        if (released || !('wakeLock' in navigator)) return
+        wakeLock = await navigator.wakeLock.request('screen')
+        wakeLock.addEventListener('release', () => { wakeLock = null })
+      } catch {}
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !wakeLock && !released) request()
+    }
+    request()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      released = true
+      document.removeEventListener('visibilitychange', onVisible)
+      wakeLock?.release?.().catch(() => {})
+      wakeLock = null
+    }
+  }, [])
+
+  // Auto-focus del input del scanner — crítico para colectores con scanner HW
+  // Re-enfoca al montar, al cambiar modo, y al cerrar cualquier modal
+  useEffect(() => {
+    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
+    const id = requestAnimationFrame(() => inpRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [loadingC, sub, modo, mOpen, camO, dupWarning, prod])
+
   const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
 
   // Guardar en DB y actualizar estado local
