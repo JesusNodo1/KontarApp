@@ -9,30 +9,38 @@ import ModalBusqueda from './ModalBusqueda'
 
 const sl = ms => new Promise(r => setTimeout(r, ms))
 
+// Crea el AudioContext una vez y lo reutiliza para evitar bloqueos por política de autoplay
+let _actx = null
+function getCtx() {
+  if (!_actx || _actx.state === 'closed') {
+    _actx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  if (_actx.state === 'suspended') _actx.resume()
+  return _actx
+}
+
 function playBeep(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const ctx = getCtx()
+    const t = ctx.currentTime
     if (type === 'ok') {
       // Dos tonos ascendentes — beep de escáner profesional
-      ;[[1000, 0, 0.09], [1800, 0.1, 0.22]].forEach(([freq, start, stop]) => {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain); gain.connect(ctx.destination)
-        osc.type = 'square'; osc.frequency.value = freq
-        gain.gain.setValueAtTime(1.0, ctx.currentTime + start)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + stop)
-        osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + stop)
-        osc.onended = () => ctx.close()
-      })
+      const o1 = ctx.createOscillator(), g1 = ctx.createGain()
+      o1.connect(g1); g1.connect(ctx.destination)
+      o1.type = 'square'; o1.frequency.value = 1000
+      g1.gain.setValueAtTime(1.0, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.09)
+      o1.start(t); o1.stop(t + 0.09)
+      const o2 = ctx.createOscillator(), g2 = ctx.createGain()
+      o2.connect(g2); g2.connect(ctx.destination)
+      o2.type = 'square'; o2.frequency.value = 1800
+      g2.gain.setValueAtTime(1.0, t + 0.1); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.22)
+      o2.start(t + 0.1); o2.stop(t + 0.22)
     } else {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
+      const osc = ctx.createOscillator(), gain = ctx.createGain()
       osc.connect(gain); gain.connect(ctx.destination)
       osc.type = 'sawtooth'; osc.frequency.value = 260
-      gain.gain.setValueAtTime(1.0, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4)
-      osc.onended = () => ctx.close()
+      gain.gain.setValueAtTime(1.0, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4)
+      osc.start(t); osc.stop(t + 0.4)
     }
   } catch {}
 }
