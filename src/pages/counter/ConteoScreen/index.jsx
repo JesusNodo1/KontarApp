@@ -133,13 +133,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
     if (modo === 'total') {
       // Total: cerrar cámara y mostrar tarjeta para ingresar cantidad
+      playBeep('ok')
       cerrarCam()
       setProd(p); setCantidad(1); setQuery(cod.trim())
     } else {
       // Unitario: +1 directo, cámara sigue abierta
+      playBeep('ok'); tFlash()
       setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
       await reg(p, 1, true)
-      playBeep('ok'); tFlash()
     }
   }
 
@@ -154,6 +155,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   /* ── cámara ── */
   const abrirCam = useCallback(async () => {
+    // Pre-calentar AudioContext dentro del gesto del usuario
+    // para que los beeps del callback del escáner puedan sonar en iOS Safari
+    try { getCtx() } catch {}
     setCamE(''); setCamO(true); setCamR(false); setCamLast(null)
     const mod = await loadZx()
     if (!mod) { setCamE('Error al cargar librería de escaneo.'); return }
