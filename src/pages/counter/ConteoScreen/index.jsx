@@ -81,6 +81,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const coolRef    = useRef(false)
   const camProcRef = useRef(null)
   const lastTapRef = useRef(0)       // para detectar doble toque en el input
+  const procCodRef = useRef(null)    // evita TDZ con procCod en el listener global
 
   // Mantener ref sincronizada para leer en callbacks async sin stale closure
   useEffect(() => { conteosRef.current = conteos }, [conteos])
@@ -134,7 +135,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       if (now - lastTs > 400) buffer = ''
       lastTs = now
       if (e.key === 'Enter') {
-        if (buffer) { procCod(buffer); buffer = '' }
+        if (buffer) { procCodRef.current?.(buffer); buffer = '' }
         e.preventDefault()
         return
       }
@@ -146,7 +147,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [loadingC, sub, mOpen, camO, dupWarning, manualKb, procCod])
+  }, [loadingC, sub, mOpen, camO, dupWarning, manualKb])
 
   const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
 
@@ -301,6 +302,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
     else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
+
+  // Mantener la ref al último procCod para que el listener global pueda llamarlo sin TDZ
+  useEffect(() => { procCodRef.current = procCod }, [procCod])
 
   const handleConf = async () => {
     if (!prod || cantidad < 1) return
