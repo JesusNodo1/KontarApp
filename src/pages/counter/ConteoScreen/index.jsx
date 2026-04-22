@@ -12,21 +12,28 @@ const sl = ms => new Promise(r => setTimeout(r, ms))
 function playBeep(type) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain); gain.connect(ctx.destination)
     if (type === 'ok') {
-      osc.type = 'sine'; osc.frequency.value = 880
-      gain.gain.setValueAtTime(1.0, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
+      // Dos tonos ascendentes — beep de escáner profesional
+      ;[[1000, 0, 0.09], [1800, 0.1, 0.22]].forEach(([freq, start, stop]) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.type = 'square'; osc.frequency.value = freq
+        gain.gain.setValueAtTime(1.0, ctx.currentTime + start)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + stop)
+        osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + stop)
+        osc.onended = () => ctx.close()
+      })
     } else {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
       osc.type = 'sawtooth'; osc.frequency.value = 260
       gain.gain.setValueAtTime(1.0, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
       osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4)
+      osc.onended = () => ctx.close()
     }
-    osc.onended = () => ctx.close()
   } catch {}
 }
 
