@@ -118,13 +118,35 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
   }, [])
 
-  // Auto-focus del input del scanner — crítico para colectores con scanner HW
-  // Re-enfoca al montar, al cambiar modo, y al cerrar cualquier modal
+  // Captura global de keystrokes del scanner HW a nivel de document.
+  // Evita tener que enfocar el input (lo que dispararía el teclado virtual en
+  // Android, ya que algunos teclados ignoran inputMode="none"). Así el teclado
+  // solo aparece cuando el usuario lo pide explícitamente (doble toque).
   useEffect(() => {
     if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    const id = requestAnimationFrame(() => inpRef.current?.focus())
-    return () => cancelAnimationFrame(id)
-  }, [loadingC, sub, modo, mOpen, camO, dupWarning, prod])
+    if (manualKb) return
+    let buffer = ''
+    let lastTs = 0
+    const onKey = (e) => {
+      const tgt = e.target
+      if (tgt && (tgt.tagName === 'TEXTAREA' || (tgt.tagName === 'INPUT' && tgt !== inpRef.current) || tgt.isContentEditable)) return
+      const now = Date.now()
+      if (now - lastTs > 400) buffer = ''
+      lastTs = now
+      if (e.key === 'Enter') {
+        if (buffer) { procCod(buffer); buffer = '' }
+        e.preventDefault()
+        return
+      }
+      if (e.key.length === 1) {
+        buffer += e.key
+        setQuery(buffer)
+        setNoEnc(false)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [loadingC, sub, mOpen, camO, dupWarning, manualKb, procCod])
 
   const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
 
@@ -521,7 +543,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             {/* scanner bar */}
             <div style={{ display: 'flex' }}>
               <input
-                ref={inpRef} type="text" inputMode={manualKb ? 'numeric' : 'none'} placeholder="Listo para escanear..."
+                ref={inpRef} type="text"
+                inputMode={manualKb ? 'numeric' : 'none'}
+                readOnly={!manualKb}
+                placeholder="Listo para escanear..."
                 value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
                 onKeyDown={e => { if (e.key === 'Enter') procCod(query) }}
