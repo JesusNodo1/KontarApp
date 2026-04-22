@@ -21,18 +21,23 @@ function getCtx() {
 
 function playBeep(type) {
   try {
+    // Vibración háptica — funciona incluso con el speaker tapado por la funda del colector
+    if ('vibrate' in navigator) {
+      navigator.vibrate(type === 'err' ? [80, 40, 80] : type === 'sum' ? [30, 30, 30] : 40)
+    }
     const ctx = getCtx()
     const t = ctx.currentTime
-    if (type === 'ok') {
-      // Dos tonos ascendentes — beep de escáner profesional
+    if (type === 'ok' || type === 'sum') {
+      // 'ok' (nuevo) → ascendente 1000→1800; 'sum' (duplicado) → descendente 1800→1000
+      const [f1, f2] = type === 'ok' ? [1000, 1800] : [1800, 1000]
       const o1 = ctx.createOscillator(), g1 = ctx.createGain()
       o1.connect(g1); g1.connect(ctx.destination)
-      o1.type = 'square'; o1.frequency.value = 1000
+      o1.type = 'square'; o1.frequency.value = f1
       g1.gain.setValueAtTime(1.0, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.09)
       o1.start(t); o1.stop(t + 0.09)
       const o2 = ctx.createOscillator(), g2 = ctx.createGain()
       o2.connect(g2); g2.connect(ctx.destination)
-      o2.type = 'square'; o2.frequency.value = 1800
+      o2.type = 'square'; o2.frequency.value = f2
       g2.gain.setValueAtTime(1.0, t + 0.1); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.22)
       o2.start(t + 0.1); o2.stop(t + 0.22)
     } else {
@@ -47,7 +52,7 @@ function playBeep(type) {
 
 export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user }) {
   const [sub,        setSub]        = useState('conteo')
-  const [modo,       setModo]       = useState('total')
+  const [modo,       setModo]       = useState('unitario')
   const [query,      setQuery]      = useState('')
   const [prod,       setProd]       = useState(null)
   const [cantidad,   setCantidad]   = useState(1)
@@ -133,12 +138,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
     if (modo === 'total') {
       // Total: cerrar cámara y mostrar tarjeta para ingresar cantidad
+      // Cerrar cámara con demora para que el beep arranque antes de liberar el MediaStream
       playBeep('ok')
-      cerrarCam()
+      setTimeout(cerrarCam, 250)
       setProd(p); setCantidad(1); setQuery(cod.trim())
     } else {
       // Unitario: +1 directo, cámara sigue abierta
-      playBeep('ok'); tFlash()
+      const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
+      playBeep(isDup ? 'sum' : 'ok'); tFlash()
       setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
       await reg(p, 1, true)
     }
@@ -188,7 +195,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
         (res) => {
           if (!res || coolRef.current) return
           coolRef.current = true
-          setTimeout(() => { coolRef.current = false }, 1500)
+          setTimeout(() => { coolRef.current = false }, 600)
           camProcRef.current(res.getText())
         }
       )
@@ -213,7 +220,12 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     setBuscando(false)
     if (!p) { playBeep('err'); setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
     // Unitario → +1 directo; Total → muestra tarjeta para ingresar cantidad exacta
-    if (modo === 'unitario') { await sl(120); await reg(p, 1, true); playBeep('ok'); tFlash(); setQuery(''); inpRef.current?.focus() }
+    if (modo === 'unitario') {
+      const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
+      playBeep(isDup ? 'sum' : 'ok'); tFlash()
+      await sl(120); await reg(p, 1, true)
+      setQuery(''); inpRef.current?.focus()
+    }
     else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
 
@@ -237,7 +249,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     setDupWarning(null)
     setConfirming(true)
     await reg(p, existente + nueva, false)
-    playBeep('ok'); tFlash()
+    playBeep('sum'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
     inpRef.current?.focus()
   }
@@ -530,28 +542,27 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             )}
           </div>
 
-          {/* último contado */}
-          <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 10 }}>Último producto contado</div>
-            {ultimo ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ background: GL, border: '1px solid #6EE7B7', width: 54, height: 54, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 22, color: G, lineHeight: 1, fontFamily: "'DM Mono',monospace" }}>{ultimo.cantidad}</div>
-                  <div style={{ fontSize: 9, color: GD, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>uds.</div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ultimo.nombre} {ultimo.variante}</div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5, background: BL, border: '1px solid #BFDBFE', padding: '3px 8px' }}>
-                    <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.5" strokeLinecap="square"><rect x={3} y={3} width={18} height={18}/><path d="M7 7v10M10 7v10M14 7v5M17 7v5M14 15v2M17 15v2"/></svg>
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 500, color: B, letterSpacing: '0.06em' }}>{ultimo.sku}</span>
-                  </div>
-                </div>
-                <div style={{ background: GL, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={G} strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
-                </div>
-              </div>
+          {/* últimos 5 contados */}
+          <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '10px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>
+              Últimos {Math.min(5, conteos.length)} contados
+            </div>
+            {conteos.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#9CA3AF' }}>Ningún producto contado aún</div>
             ) : (
-              <div style={{ fontSize: 13, color: '#9CA3AF' }}>Ningún producto contado aún</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {conteos.slice(0, 5).map((c, i) => (
+                  <div key={c.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ background: i === 0 ? GL : '#fff', border: `1px solid ${i === 0 ? '#6EE7B7' : '#E5E7EB'}`, minWidth: 32, height: 22, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: i === 0 ? G : '#374151' }}>{c.cantidad}</span>
+                    </div>
+                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, background: BL, border: '1px solid #BFDBFE', padding: '1px 5px', fontWeight: 500, flexShrink: 0, letterSpacing: '0.03em' }}>{c.sku}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: i === 0 ? 600 : 400 }}>
+                      {c.nombre}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
