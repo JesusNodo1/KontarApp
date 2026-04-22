@@ -17,14 +17,14 @@ function playBeep(type) {
     osc.connect(gain); gain.connect(ctx.destination)
     if (type === 'ok') {
       osc.type = 'sine'; osc.frequency.value = 880
-      gain.gain.setValueAtTime(0.25, ctx.currentTime)
+      gain.gain.setValueAtTime(1.0, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
       osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
     } else {
       osc.type = 'sawtooth'; osc.frequency.value = 260
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28)
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.28)
+      gain.gain.setValueAtTime(1.0, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4)
     }
     osc.onended = () => ctx.close()
   } catch {}
