@@ -73,12 +73,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [eId,        setEId]        = useState(null)
   const [eVal,       setEVal]       = useState('')
   const [dupWarning, setDupWarning] = useState(null)  // { prod, existente, nueva }
+  const [manualKb,   setManualKb]   = useState(false) // teclado virtual solo con doble toque
 
   const vidRef     = useRef(null)
   const rdrRef     = useRef(null)
   const inpRef     = useRef(null)
   const coolRef    = useRef(false)
   const camProcRef = useRef(null)
+  const lastTapRef = useRef(0)
 
   // Mantener ref sincronizada para leer en callbacks async sin stale closure
   useEffect(() => { conteosRef.current = conteos }, [conteos])
@@ -125,6 +127,21 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   }, [loadingC, sub, modo, mOpen, camO, dupWarning, prod])
 
   const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
+
+  // Doble toque → activa teclado virtual (inputMode pasa de 'none' a 'numeric')
+  const handleInputTap = () => {
+    const now = Date.now()
+    if (now - lastTapRef.current < 400) {
+      setManualKb(true)
+      requestAnimationFrame(() => {
+        const el = inpRef.current
+        if (el) { el.blur(); el.focus() }
+      })
+      lastTapRef.current = 0
+    } else {
+      lastTapRef.current = now
+    }
+  }
 
   // Guardar en DB y actualizar estado local
   // increment=true → suma c a la cantidad existente (modo unitario)
@@ -502,15 +519,18 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             {/* scanner bar */}
             <div style={{ display: 'flex' }}>
               <input
-                ref={inpRef} type="text" inputMode="text" placeholder="Listo para escanear..."
+                ref={inpRef} type="text"
+                inputMode={manualKb ? 'numeric' : 'none'}
+                placeholder="Listo para escanear..."
                 value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
                 onKeyDown={e => { if (e.key === 'Enter') procCod(query) }}
+                onClick={handleInputTap}
                 autoComplete="off" spellCheck={false}
                 className={noEnc ? 'shake' : ''}
                 style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff' }}
                 onFocus={e => { if (!noEnc) e.target.style.borderColor = B }}
-                onBlur={e => { if (!noEnc) e.target.style.borderColor = '#D1D5DB' }}
+                onBlur={e => { if (!noEnc) e.target.style.borderColor = '#D1D5DB'; setManualKb(false) }}
               />
               <button onClick={abrirCam} style={{ width: 46, height: 46, background: B, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, borderRight: `1px solid ${BD}` }}>
                 <svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="square"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx={12} cy={13} r={4}/></svg>
