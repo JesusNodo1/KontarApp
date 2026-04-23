@@ -125,6 +125,19 @@ export async function upsertConteo({ zona_id, inventario_id, producto_id, usuari
 }
 
 /**
+ * Elimina el conteo de un producto en una zona (usado por "Deshacer" cuando
+ * la cantidad revertida queda en 0).
+ */
+export async function deleteConteo({ zona_id, producto_id }) {
+  const { error } = await supabase
+    .from('conteos')
+    .delete()
+    .eq('zona_id', zona_id)
+    .eq('producto_id', producto_id)
+  if (error) throw new Error(error.message)
+}
+
+/**
  * Formato de fecha YYYY-MM-DD → DD/MM/YYYY
  */
 export function fmtFecha(d) {

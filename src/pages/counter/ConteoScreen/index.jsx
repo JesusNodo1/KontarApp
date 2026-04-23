@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { B, BD, BL, G, GD, GL } from '../../../constants/theme'
 import { bxCod } from '../../../services/productService'
 import { loadZx } from '../../../services/scanner'
-import { getConteosPorZona, upsertConteo } from '../../../services/conteoService'
+import { getConteosPorZona, upsertConteo, deleteConteo } from '../../../services/conteoService'
 import Spinner from '../../../components/Spinner'
 import ModalCam from './ModalCam'
 import ModalBusqueda from './ModalBusqueda'
@@ -70,9 +70,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [camE,       setCamE]       = useState('')
   const [camR,       setCamR]       = useState(false)
   const [camLast,    setCamLast]    = useState(null)
-  const [eId,        setEId]        = useState(null)
-  const [eVal,       setEVal]       = useState('')
   const [dupWarning, setDupWarning] = useState(null)  // { prod, existente, nueva }
+  const [rView,      setRView]      = useState('unitario') // subvista reporte: 'unitario' | 'total'
+  const [scans,      setScans]      = useState([])         // historial de scans de la sesión (no persistido)
+  const [undoing,    setUndoing]    = useState(false)
 
   const vidRef     = useRef(null)
   const rdrRef     = useRef(null)
@@ -134,23 +135,25 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     focusScan()
   }, [loadingC, sub, mOpen, camO, dupWarning, focusScan])
 
-  // Guardar en DB y actualizar estado local
-  // increment=true → suma c a la cantidad existente (modo unitario)
-  // increment=false → reemplaza con c (modo total y edición manual)
+  // Guardar en DB y actualizar estado local.
+  // increment=true  → suma c a la cantidad existente (modo unitario)
+  // increment=false → reemplaza con c (modo total)
+  // Devuelve { prev, next } para que el caller pueda loggear el evento y revertirlo después.
   const reg = useCallback(async (p, c, increment = false) => {
     const existing = conteosRef.current.find(x => x.producto_id === p.id)
-    const finalCantidad = increment && existing ? existing.cantidad + c : c
+    const prev = existing?.cantidad ?? 0
+    const finalCantidad = increment ? prev + c : c
     // Optimistic update
-    setConteos(prev => {
-      const i = prev.findIndex(x => x.producto_id === p.id)
+    setConteos(prevList => {
+      const i = prevList.findIndex(x => x.producto_id === p.id)
       const item = { id: p.id, producto_id: p.id, nombre: p.nombre, variante: p.variante, sku: p.sku, cantidad: finalCantidad, ts: new Date() }
       if (i !== -1) {
-        const cp = [...prev]
+        const cp = [...prevList]
         const [it] = cp.splice(i, 1)
         it.cantidad = finalCantidad; it.ts = new Date()
         return [it, ...cp]
       }
-      return [item, ...prev]
+      return [item, ...prevList]
     })
     // Persist to Supabase
     try {
@@ -164,7 +167,58 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     } catch (e) {
       console.error('[ConteoScreen] upsertConteo error:', e)
     }
+    return { prev, next: finalCantidad }
   }, [zona.id, inv.id, user.id])
+
+  // Helper: registra + agrega entrada al historial de scans para poder deshacer.
+  const regAndLog = useCallback(async (p, c, increment = false) => {
+    const { prev, next } = await reg(p, c, increment)
+    setScans(s => [{
+      id:          `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      producto_id: p.id,
+      nombre:      p.nombre,
+      variante:    p.variante,
+      sku:         p.sku,
+      delta:       next - prev,
+      prev,
+      next,
+      ts:          new Date(),
+    }, ...s])
+    return { prev, next }
+  }, [reg])
+
+  // Deshacer el último scan de la sesión: restaura la cantidad al valor previo.
+  const undoLast = useCallback(async () => {
+    if (scans.length === 0 || undoing) return
+    const last = scans[0]
+    setUndoing(true)
+    // Optimistic state update
+    setConteos(prev => {
+      if (last.prev === 0) return prev.filter(x => x.producto_id !== last.producto_id)
+      const i = prev.findIndex(x => x.producto_id === last.producto_id)
+      if (i === -1) return prev
+      const cp = [...prev]
+      cp[i] = { ...cp[i], cantidad: last.prev, ts: new Date() }
+      return cp
+    })
+    try {
+      if (last.prev === 0) {
+        await deleteConteo({ zona_id: zona.id, producto_id: last.producto_id })
+      } else {
+        await upsertConteo({
+          zona_id:       zona.id,
+          inventario_id: inv.id,
+          producto_id:   last.producto_id,
+          usuario_id:    user.id,
+          cantidad:      last.prev,
+        })
+      }
+    } catch (e) {
+      console.error('[ConteoScreen] undoLast error:', e)
+    }
+    setScans(s => s.slice(1))
+    setUndoing(false)
+  }, [scans, undoing, zona.id, inv.id, user.id])
 
   /* ── procesamiento de código desde cámara (ref para evitar stale closure) ── */
   camProcRef.current = async cod => {
@@ -187,7 +241,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
       playBeep(isDup ? 'sum' : 'ok'); tFlash()
       setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
-      await reg(p, 1, true)
+      await regAndLog(p, 1, true)
     }
   }
 
@@ -319,11 +373,11 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     if (modo === 'unitario') {
       const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
       playBeep(isDup ? 'sum' : 'ok'); tFlash()
-      await sl(120); await reg(p, 1, true)
+      await sl(120); await regAndLog(p, 1, true)
       setQuery(''); focusScan()
     }
     else { setProd(p); setCantidad(1); setQuery(cod) }
-  }, [modo, reg])
+  }, [modo, regAndLog])
 
   // Mantener la ref al último procCod para que el listener global pueda llamarlo sin TDZ
   useEffect(() => { procCodRef.current = procCod }, [procCod])
@@ -337,7 +391,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       return
     }
     setConfirming(true)
-    await reg(prod, cantidad, false)
+    await regAndLog(prod, cantidad, false)
     playBeep('ok'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
     focusScan()
@@ -347,25 +401,16 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     const { prod: p, existente, nueva } = dupWarning
     setDupWarning(null)
     setConfirming(true)
-    await reg(p, existente + nueva, false)
+    await regAndLog(p, existente + nueva, false)
     playBeep('sum'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
     focusScan()
   }
 
-  /* ── edición inline de cantidad en reporte ── */
-  const handleEditBlur = async (c, rawVal) => {
-    const v = parseInt(rawVal)
-    setEId(null)
-    if (isNaN(v) || v < 0) return
-    const p = { id: c.producto_id, nombre: c.nombre, variante: c.variante, sku: c.sku }
-    await reg(p, v)
-  }
-
   /* ── selección desde modal ── */
   const handleSelModal = async (p, cant = 1, esNuevo = false) => {
     if (esNuevo) {
-      await reg(p, cant); playBeep('ok'); tFlash()
+      await regAndLog(p, cant); playBeep('ok'); tFlash()
       setMOpen(false); setProd(null); setQuery(''); setCantidad(1)
       focusScan(); return
     }
@@ -468,7 +513,8 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
       {/* ═══ SUB REPORTE ═══ */}
       {sub === 'reporte' && (
-        <div className="sin" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="sin" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {/* stats */}
           <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB' }}>
             {[{ label: 'Productos', value: conteos.length, color: B, bg: BL }, { label: 'Total uds.', value: totalU, color: G, bg: GL }].map(({ label, value, color, bg }) => (
               <div key={label} style={{ flex: 1, padding: 14, background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, borderRight: '1px solid #E5E7EB' }}>
@@ -478,66 +524,119 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             ))}
           </div>
 
-          {/* tabla header */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 64px 44px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-            {['Código', 'Descripción', 'Cant.', ''].map((h, i) => (
-              <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 ? 'center' : i === 3 ? 'right' : 'left' }}>{h}</div>
-            ))}
+          {/* selector vista */}
+          <div style={{ background: '#fff', padding: '10px 14px', display: 'flex', gap: 10, borderBottom: '1px solid #E5E7EB' }}>
+            {[
+              { k: 'unitario', lbl: 'Unitario' },
+              { k: 'total',    lbl: 'Total' },
+            ].map(({ k, lbl }) => {
+              const active = rView === k
+              return (
+                <button
+                  key={k}
+                  onClick={() => setRView(k)}
+                  style={{ flex: 1, padding: '8px 0', border: active ? `2px solid ${B}` : '2px solid #E5E7EB', background: active ? BL : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: active ? B : '#6B7280' }}
+                >
+                  {lbl}
+                </button>
+              )
+            })}
           </div>
 
-          {/* tabla rows */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {conteos.length === 0 && (
-              <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay productos contados en esta zona.</div>
-            )}
-            {conteos.map((c, idx) => (
-              <div key={c.producto_id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 64px 44px', padding: '11px 12px', borderBottom: '1px solid #F3F4F6', background: idx % 2 === 0 ? '#fff' : '#FAFAFA', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.sku}</div>
-                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{fmtH(c.ts)}</div>
-                </div>
-                <div style={{ paddingLeft: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nombre}</div>
-                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1 }}>{c.variante}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {eId === c.producto_id
-                    ? <input
-                        type="number" inputMode="numeric" value={eVal}
-                        onChange={e => setEVal(e.target.value)}
-                        onBlur={() => handleEditBlur(c, eVal)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleEditBlur(c, eVal) }}
-                        autoFocus autoComplete="off"
-                        style={{ width: 50, height: 34, border: `2px solid ${B}`, textAlign: 'center', fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: B, background: BL, outline: 'none' }}
-                      />
-                    : <div onClick={() => { setEId(c.producto_id); setEVal(String(c.cantidad)) }} style={{ minWidth: 40, height: 34, background: GL, border: '1px solid #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '0 8px' }}>
-                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 17, fontWeight: 700, color: G }}>{c.cantidad}</span>
-                      </div>
-                  }
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => { setProd({ id: c.producto_id, nombre: c.nombre, variante: c.variante, sku: c.sku }); setCantidad(c.cantidad); setModo('total'); setQuery(c.sku); setSub('conteo') }}
-                    style={{ width: 36, height: 36, background: '#F9FAFB', border: '1px solid #E5E7EB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.2" strokeLinecap="square"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-                  </button>
-                </div>
+          {rView === 'unitario' ? (
+            <>
+              {/* lista de scans individuales (sólo sesión actual) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 52px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                {['Código', 'Descripción', 'Cant.'].map((h, i) => (
+                  <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 ? 'center' : 'left' }}>{h}</div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {scans.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                    No hay scans en esta sesión.<br/>
+                    <span style={{ fontSize: 11 }}>(el historial unitario es por sesión, no persiste al salir)</span>
+                  </div>
+                ) : scans.map((s, idx) => (
+                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 52px', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', background: idx === 0 ? GL : (idx % 2 === 1 ? '#FAFAFA' : '#fff'), alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sku}</div>
+                      <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{fmtH(s.ts)}</div>
+                    </div>
+                    <div style={{ paddingLeft: 8, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nombre}</div>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.variante}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: s.delta >= 0 ? G : '#DC2626' }}>
+                        {s.delta >= 0 ? '+' : ''}{s.delta}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* vista total: una fila por producto, sin edición */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 64px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                {['Código', 'Descripción', 'Cant.'].map((h, i) => (
+                  <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 ? 'center' : 'left' }}>{h}</div>
+                ))}
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {conteos.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No hay productos contados en esta zona.</div>
+                ) : conteos.map((c, idx) => (
+                  <div key={c.producto_id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 64px', padding: '11px 12px', borderBottom: '1px solid #F3F4F6', background: idx % 2 === 0 ? '#fff' : '#FAFAFA', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.sku}</div>
+                      <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{fmtH(c.ts)}</div>
+                    </div>
+                    <div style={{ paddingLeft: 8, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nombre}</div>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.variante}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ minWidth: 40, height: 30, background: GL, border: '1px solid #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px' }}>
+                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: G }}>{c.cantidad}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
-          <div style={{ padding: '12px 14px', paddingBottom: 'max(env(safe-area-inset-bottom),12px)', borderTop: '1px solid #E5E7EB', background: '#fff', display: 'flex', gap: 10 }}>
-            <button onClick={() => setSub('conteo')} style={{ flex: 1, padding: '14px 0', background: '#F3F4F6', border: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Volver
-            </button>
-            <button
-              onClick={handleFinalizarZona}
-              disabled={saving}
-              style={{ flex: 1, padding: '14px 0', background: saving ? `${G}99` : G, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-            >
-              {saving ? <><Spinner /> Guardando...</> : '✓ Finalizar zona'}
-            </button>
+          {/* acciones */}
+          <div style={{ padding: '12px 14px', paddingBottom: 'max(env(safe-area-inset-bottom),12px)', borderTop: '1px solid #E5E7EB', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {rView === 'unitario' && (
+              <button
+                onClick={undoLast}
+                disabled={scans.length === 0 || undoing}
+                style={{ width: '100%', padding: '12px 0', background: scans.length === 0 || undoing ? '#F3F4F6' : '#FEF3C7', border: `2px solid ${scans.length === 0 || undoing ? '#E5E7EB' : '#F59E0B'}`, fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: scans.length === 0 || undoing ? '#9CA3AF' : '#92400E', cursor: scans.length === 0 || undoing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {undoing
+                  ? <><Spinner /> Revirtiendo...</>
+                  : <>
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                      {scans.length === 0 ? 'Sin scans para deshacer' : `Deshacer último (${scans[0].nombre})`}
+                    </>
+                }
+              </button>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setSub('conteo')} style={{ flex: 1, padding: '14px 0', background: '#F3F4F6', border: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Volver
+              </button>
+              <button
+                onClick={handleFinalizarZona}
+                disabled={saving}
+                style={{ flex: 1, padding: '14px 0', background: saving ? `${G}99` : G, color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {saving ? <><Spinner /> Guardando...</> : '✓ Finalizar zona'}
+              </button>
+            </div>
           </div>
         </div>
       )}
