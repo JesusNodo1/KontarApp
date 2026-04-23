@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
+import { read as xlsxRead, utils as xlsxUtils, writeFile as xlsxWriteFile } from 'xlsx'
 import { B, BL, G, GL } from '../../constants/theme'
 import {
   getProductosAdmin,
@@ -87,6 +87,21 @@ export default function ProductosScreen() {
     }
   }
 
+  // ── descargar plantilla de importación ────────────────────────
+  const handleDescargarPlantilla = () => {
+    const filas = [
+      { sku: 'EJ-001', nombre: 'Producto ejemplo',      variante: '500ml', codigo_barras: '7790001234567' },
+      { sku: 'EJ-002', nombre: 'Otro producto ejemplo', variante: '1L',    codigo_barras: '7790001234574' },
+    ]
+    const ws = xlsxUtils.json_to_sheet(filas, {
+      header: ['sku', 'nombre', 'variante', 'codigo_barras'],
+    })
+    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 16 }, { wch: 18 }]
+    const wb = xlsxUtils.book_new()
+    xlsxUtils.book_append_sheet(wb, ws, 'Productos')
+    xlsxWriteFile(wb, 'plantilla_productos.xlsx')
+  }
+
   // ── importar Excel / CSV ──────────────────────────────────────
   const handleImport = async e => {
     const file = e.target.files?.[0]
@@ -127,6 +142,14 @@ export default function ProductosScreen() {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input type="file" ref={fileRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
           <button
+            onClick={handleDescargarPlantilla}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#fff', border: '2px solid #D1D5DB', color: '#374151', fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
+            title="Descargar plantilla de Excel con las columnas requeridas"
+          >
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
+            Plantilla
+          </button>
+          <button
             onClick={() => fileRef.current?.click()}
             disabled={importing}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: importing ? '#F3F4F6' : '#fff', border: `2px solid ${B}`, color: B, fontWeight: 700, fontSize: 13, cursor: importing ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
@@ -163,7 +186,13 @@ export default function ProductosScreen() {
       <div style={{ background: BL, border: `1px solid ${B}33`, padding: '10px 14px', fontSize: 12, color: '#374151', marginBottom: 16 }}>
         <strong style={{ color: B }}>Formato Excel:</strong> columnas →{' '}
         <span style={{ fontFamily: "'DM Mono',monospace" }}>sku | nombre | variante | codigo_barras</span>
-        {' '}(primera fila = encabezado). El SKU se usa como clave única (upsert).
+        {' '}(primera fila = encabezado). El SKU se usa como clave única (upsert).{' '}
+        <button
+          onClick={handleDescargarPlantilla}
+          style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 12, textDecoration: 'underline' }}
+        >
+          Descargar plantilla
+        </button>
       </div>
 
       {/* búsqueda + filtro */}
