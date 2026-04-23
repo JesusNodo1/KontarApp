@@ -84,7 +84,7 @@ export async function getInventarioDetalle(inventario_id) {
       .eq('inventario_id', inventario_id),
     supabase
       .from('conteos')
-      .select('cantidad, updated_at, producto:producto_id(nombre, variante, sku), zona:zona_id(nombre), usuario:usuario_id(nombre)')
+      .select('cantidad, updated_at, producto:producto_id(nombre, variante, sku, codigo_barras), zona:zona_id(nombre), usuario:usuario_id(nombre)')
       .eq('inventario_id', inventario_id)
       .order('updated_at', { ascending: false })
       .limit(30),
@@ -107,7 +107,7 @@ export async function getInventarioDetalle(inventario_id) {
 export async function getZonaDetalle(zona_id) {
   const { data } = await supabase
     .from('conteos')
-    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante), usuario:usuario_id(nombre)')
+    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), usuario:usuario_id(nombre)')
     .eq('zona_id', zona_id)
     .order('updated_at', { ascending: false })
   return data || []
@@ -126,18 +126,33 @@ export async function crearProductoAdmin({ sku, nombre, variante, codigo_barras 
   const { data: { user } } = await supabase.auth.getUser()
   const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
+  const cb = String(codigo_barras || '').trim()
+  if (!cb) throw new Error('El código de barras es obligatorio.')
   const { data, error } = await supabase
     .from('productos')
-    .insert({ sku, nombre, variante: variante || '', codigo_barras: codigo_barras || '', cliente_id: perfil.cliente_id })
+    .insert({
+      sku:           sku ? String(sku).trim() : null,
+      nombre,
+      variante:      variante || '',
+      codigo_barras: cb,
+      cliente_id:    perfil.cliente_id,
+    })
     .select().single()
   if (error) throw new Error(error.message)
   return data
 }
 
 export async function editarProducto(id, { sku, nombre, variante, codigo_barras }) {
+  const cb = String(codigo_barras || '').trim()
+  if (!cb) throw new Error('El código de barras es obligatorio.')
   const { data, error } = await supabase
     .from('productos')
-    .update({ sku, nombre, variante: variante || '', codigo_barras: codigo_barras || '' })
+    .update({
+      sku:           sku ? String(sku).trim() : null,
+      nombre,
+      variante:      variante || '',
+      codigo_barras: cb,
+    })
     .eq('id', id)
     .select().single()
   if (error) throw new Error(error.message)
@@ -154,21 +169,24 @@ export async function importarProductosCSV(rows) {
   const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
   const items = rows
-    .map(r => ({
-      cliente_id:    perfil.cliente_id,
-      sku:           String(r.sku || r.SKU || '').trim(),
-      nombre:        String(r.nombre || r.Nombre || '').trim(),
-      variante:      String(r.variante || r.Variante || '').trim(),
-      codigo_barras: String(r.codigo_barras || r['Código de Barras'] || r.codigo || '').trim(),
-      activo:        true,
-    }))
-    .filter(r => r.sku && r.nombre)
+    .map(r => {
+      const skuRaw = String(r.sku || r.SKU || '').trim()
+      return {
+        cliente_id:    perfil.cliente_id,
+        sku:           skuRaw || null,
+        nombre:        String(r.nombre || r.Nombre || '').trim(),
+        variante:      String(r.variante || r.Variante || '').trim(),
+        codigo_barras: String(r.codigo_barras || r['Código de Barras'] || r.codigo || '').trim(),
+        activo:        true,
+      }
+    })
+    .filter(r => r.codigo_barras && r.nombre)
 
-  if (!items.length) throw new Error('No se encontraron filas válidas (requiere columnas sku y nombre).')
+  if (!items.length) throw new Error('No se encontraron filas válidas (requiere columnas nombre y codigo_barras).')
 
   const { error } = await supabase
     .from('productos')
-    .upsert(items, { onConflict: 'cliente_id,sku' })
+    .upsert(items, { onConflict: 'cliente_id,codigo_barras' })
   if (error) throw new Error(error.message)
   return items.length
 }

@@ -58,7 +58,7 @@ export default function ProductosScreen() {
   // ── guardar (crear / editar) ──────────────────────────────────
   const handleGuardar = async e => {
     e.preventDefault()
-    if (!form.sku || !form.nombre) { setErrorMsg('SKU y nombre son obligatorios.'); return }
+    if (!form.nombre || !form.codigo_barras) { setErrorMsg('Nombre y código de barras son obligatorios.'); return }
     setSaving(true); setErrorMsg('')
     try {
       if (editando) {
@@ -90,13 +90,13 @@ export default function ProductosScreen() {
   // ── descargar plantilla de importación ────────────────────────
   const handleDescargarPlantilla = () => {
     const filas = [
-      { sku: 'EJ-001', nombre: 'Producto ejemplo',      variante: '500ml', codigo_barras: '7790001234567' },
-      { sku: 'EJ-002', nombre: 'Otro producto ejemplo', variante: '1L',    codigo_barras: '7790001234574' },
+      { nombre: 'Producto ejemplo',      variante: '500ml', codigo_barras: '7790001234567', sku: 'EJ-001' },
+      { nombre: 'Otro producto ejemplo', variante: '1L',    codigo_barras: '7790001234574', sku: '' },
     ]
     const ws = xlsxUtils.json_to_sheet(filas, {
-      header: ['sku', 'nombre', 'variante', 'codigo_barras'],
+      header: ['nombre', 'variante', 'codigo_barras', 'sku'],
     })
-    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 16 }, { wch: 18 }]
+    ws['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 18 }, { wch: 14 }]
     const wb = xlsxUtils.book_new()
     xlsxUtils.book_append_sheet(wb, ws, 'Productos')
     xlsxWriteFile(wb, 'plantilla_productos.xlsx')
@@ -185,8 +185,8 @@ export default function ProductosScreen() {
       {/* formato excel */}
       <div style={{ background: BL, border: `1px solid ${B}33`, padding: '10px 14px', fontSize: 12, color: '#374151', marginBottom: 16 }}>
         <strong style={{ color: B }}>Formato Excel:</strong> columnas →{' '}
-        <span style={{ fontFamily: "'DM Mono',monospace" }}>sku | nombre | variante | codigo_barras</span>
-        {' '}(primera fila = encabezado). El SKU se usa como clave única (upsert).{' '}
+        <span style={{ fontFamily: "'DM Mono',monospace" }}>nombre | variante | codigo_barras | sku</span>
+        {' '}(primera fila = encabezado). El código de barras se usa como clave única (upsert). El SKU es opcional.{' '}
         <button
           onClick={handleDescargarPlantilla}
           style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 12, textDecoration: 'underline' }}
@@ -224,8 +224,8 @@ export default function ProductosScreen() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 140px 120px 80px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-            {['SKU', 'Producto / Variante', 'Cód. Barras', 'Estado', ''].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+            {['Cód. Barras', 'Producto / Variante', 'SKU', 'Estado', ''].map((h, i) => (
               <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 4 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
@@ -235,7 +235,7 @@ export default function ProductosScreen() {
                   <div
                     key={p.id}
                     style={{
-                      display: 'grid', gridTemplateColumns: '120px 1fr 140px 120px 80px',
+                      display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px',
                       padding: '11px 16px',
                       borderBottom: i < filtrados.length - 1 ? '1px solid #F3F4F6' : 'none',
                       alignItems: 'center',
@@ -243,12 +243,12 @@ export default function ProductosScreen() {
                       opacity: p.activo ? 1 : 0.55,
                     }}
                   >
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.sku}</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.codigo_barras}</div>
                     <div style={{ paddingLeft: 8 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{p.nombre}</div>
                       {p.variante && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{p.variante}</div>}
                     </div>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: '#6B7280' }}>{p.codigo_barras || '—'}</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: '#6B7280' }}>{p.sku || '—'}</div>
                     <div>
                       <span style={{ background: p.activo ? GL : '#F3F4F6', color: p.activo ? '#065F46' : '#6B7280', padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                         {p.activo ? 'Activo' : 'Inactivo'}
@@ -297,10 +297,10 @@ export default function ProductosScreen() {
             </div>
             <form onSubmit={handleGuardar} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
-                { label: 'SKU *',            key: 'sku',           ph: 'Ej: PROD-001' },
-                { label: 'Nombre *',         key: 'nombre',        ph: 'Ej: Remera manga corta' },
-                { label: 'Variante',         key: 'variante',      ph: 'Ej: Azul / Talle M' },
-                { label: 'Código de barras', key: 'codigo_barras', ph: 'Ej: 7790001234567' },
+                { label: 'Nombre *',           key: 'nombre',        ph: 'Ej: Remera manga corta' },
+                { label: 'Variante',           key: 'variante',      ph: 'Ej: Azul / Talle M' },
+                { label: 'Código de barras *', key: 'codigo_barras', ph: 'Ej: 7790001234567' },
+                { label: 'SKU',                key: 'sku',           ph: 'Ej: PROD-001 (opcional)' },
               ].map(({ label, key, ph }) => (
                 <div key={key}>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>{label}</div>

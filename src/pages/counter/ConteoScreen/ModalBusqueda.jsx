@@ -10,7 +10,7 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
   const [crearView, setCrearView] = useState(!!codigoInicial)
   const [nNom,  setNNom]  = useState('')
   const [nVar,  setNVar]  = useState('')
-  const [nSku,  setNSku]  = useState(codigoInicial)
+  const [nCb,   setNCb]   = useState(codigoInicial) // código de barras (identificador)
   const [nCant, setNCant] = useState('')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)
@@ -30,15 +30,13 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
   }, [query])
 
   const handleCrearProd = async () => {
-    if (!nNom.trim() || !nSku.trim() || !nCant) return
+    if (!nNom.trim() || !nCb.trim() || !nCant) return
     setSaving(true)
     try {
-      const cod = nSku.trim()
       const p = await crearProducto({
-        sku:           cod,
         nombre:        nNom.trim(),
         variante:      nVar.trim(),
-        codigo_barras: cod,
+        codigo_barras: nCb.trim(),
       })
       onSeleccionar(p, parseInt(nCant) || 1, true)
     } catch (err) {
@@ -50,7 +48,7 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
   const campos = [
     { lbl: 'Nombre del producto *', val: nNom, set: setNNom, ph: 'Ej: Coca Cola',    mono: false },
     { lbl: 'Variante / presentación',val: nVar, set: setNVar, ph: 'Ej: 500ml, 1kg...', mono: false },
-    { lbl: 'Código de barras *',     val: nSku, set: setNSku, ph: '784000123456',     mono: true  },
+    { lbl: 'Código de barras *',     val: nCb,  set: setNCb,  ph: '784000123456',     mono: true  },
     { lbl: 'Cantidad *',             val: nCant,set: setNCant,ph: '0',                mono: false, type: 'number' },
   ]
 
@@ -95,7 +93,7 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{p.nombre}</div>
                         <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{p.variante}</div>
-                        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, marginTop: 3, letterSpacing: '0.04em' }}>{p.sku}</div>
+                        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, marginTop: 3, letterSpacing: '0.04em' }}>{p.codigo_barras || p.sku || ''}</div>
                       </div>
                       <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="square"><path d="M9 18l6-6-6-6"/></svg>
                     </div>
@@ -140,8 +138,8 @@ export default function ModalBusqueda({ onSeleccionar, onCerrar, codigoInicial =
               <button onClick={() => setCrearView(false)} style={{ flex: 1, padding: '14px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 14, color: '#374151', cursor: 'pointer' }}>← Volver</button>
               <button
                 onClick={handleCrearProd}
-                disabled={saving || !nNom.trim() || !nSku.trim() || !nCant}
-                style={{ flex: 2, padding: '14px 0', background: !nNom.trim() || !nSku.trim() || !nCant || saving ? `${G}99` : G, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: !nNom.trim() || !nSku.trim() || !nCant || saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                disabled={saving || !nNom.trim() || !nCb.trim() || !nCant}
+                style={{ flex: 2, padding: '14px 0', background: !nNom.trim() || !nCb.trim() || !nCant || saving ? `${G}99` : G, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: !nNom.trim() || !nCb.trim() || !nCant || saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {saving ? <><Spinner /> Creando...</> : '✓ Guardar y contar'}
               </button>

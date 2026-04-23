@@ -47,7 +47,7 @@ export default function ModalCam({ vidRef, camR, camE, onCerrar, lastScan }) {
               {lastScan.nombre}{lastScan.variante ? ` · ${lastScan.variante}` : ''}
             </div>
             <div style={{ color: '#86efac', fontSize: 11, fontFamily: "'DM Mono',monospace", marginTop: 2 }}>
-              {lastScan.sku} · +1 registrado
+              {(lastScan.codigo_barras || lastScan.sku || '—')} · +1 registrado
             </div>
             <div style={{ color: '#6ee7b7', fontSize: 10, fontFamily: "'DM Mono',monospace", marginTop: 3, opacity: 0.7 }}>
               leído: {lastScan.raw}

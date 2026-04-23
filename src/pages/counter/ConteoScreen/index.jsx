@@ -157,7 +157,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     // Optimistic update
     setConteos(prevList => {
       const i = prevList.findIndex(x => x.producto_id === p.id)
-      const item = { id: p.id, producto_id: p.id, nombre: p.nombre, variante: p.variante, sku: p.sku, cantidad: finalCantidad, ts: new Date() }
+      const item = { id: p.id, producto_id: p.id, nombre: p.nombre, variante: p.variante, sku: p.sku, codigo_barras: p.codigo_barras, cantidad: finalCantidad, ts: new Date() }
       if (i !== -1) {
         const cp = [...prevList]
         const [it] = cp.splice(i, 1)
@@ -185,15 +185,16 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const regAndLog = useCallback(async (p, c, increment = false) => {
     const { prev, next } = await reg(p, c, increment)
     setScans(s => [{
-      id:          `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      producto_id: p.id,
-      nombre:      p.nombre,
-      variante:    p.variante,
-      sku:         p.sku,
-      delta:       next - prev,
+      id:            `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      producto_id:   p.id,
+      nombre:        p.nombre,
+      variante:      p.variante,
+      sku:           p.sku,
+      codigo_barras: p.codigo_barras,
+      delta:         next - prev,
       prev,
       next,
-      ts:          new Date(),
+      ts:            new Date(),
     }, ...s])
     return { prev, next }
   }, [reg])
@@ -251,7 +252,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       // Unitario: +1 directo, cámara sigue abierta
       const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
       playBeep(isDup ? 'sum' : 'ok'); tFlash()
-      setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, raw: cod.trim() })
+      setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, codigo_barras: p.codigo_barras, raw: cod.trim() })
       await regAndLog(p, 1, true)
     }
   }
@@ -425,7 +426,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       setMOpen(false); setProd(null); setQuery(''); setCantidad(1)
       focusScan(); return
     }
-    setProd(p); setQuery(p.sku); setCantidad(1); setModo('total'); setMOpen(false)
+    setProd(p); setQuery(p.codigo_barras || p.sku || ''); setCantidad(1); setModo('total'); setMOpen(false)
   }
 
   /* ── finalizar zona ── */
@@ -571,7 +572,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                 ) : scans.map((s, idx) => (
                   <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 52px', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', background: idx === 0 ? GL : (idx % 2 === 1 ? '#FAFAFA' : '#fff'), alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sku}</div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.codigo_barras || s.sku || '—'}</div>
                       <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{fmtH(s.ts)}</div>
                     </div>
                     <div style={{ paddingLeft: 8, minWidth: 0 }}>
@@ -601,7 +602,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                 ) : conteos.map((c, idx) => (
                   <div key={c.producto_id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 64px', padding: '11px 12px', borderBottom: '1px solid #F3F4F6', background: idx % 2 === 0 ? '#fff' : '#FAFAFA', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.sku}</div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 500, letterSpacing: '0.04em', background: BL, border: '1px solid #BFDBFE', padding: '2px 4px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.codigo_barras || c.sku || '—'}</div>
                       <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{fmtH(c.ts)}</div>
                     </div>
                     <div style={{ paddingLeft: 8, minWidth: 0 }}>
@@ -714,7 +715,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontWeight: 700, fontSize: 21, color: '#111827', lineHeight: 1.2 }}>{prod.nombre}</div>
                   <div style={{ fontWeight: 600, fontSize: 15, color: '#374151', marginTop: 4 }}>{prod.variante}</div>
-                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6, fontFamily: "'DM Mono',monospace", letterSpacing: '0.04em' }}>SKU: {prod.sku}</div>
+                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6, fontFamily: "'DM Mono',monospace", letterSpacing: '0.04em' }}>
+                    {prod.codigo_barras ? `Cód: ${prod.codigo_barras}` : (prod.sku ? `SKU: ${prod.sku}` : '')}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <button onClick={() => setCantidad(c => Math.max(1, c - 1))} style={{ width: 52, height: 52, background: G, color: '#fff', border: 'none', fontSize: 28, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
@@ -769,7 +772,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                         {s.delta >= 0 ? '+' : ''}{s.delta}
                       </span>
                     </div>
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, background: BL, border: '1px solid #BFDBFE', padding: '1px 5px', fontWeight: 500, flexShrink: 0, letterSpacing: '0.03em' }}>{s.sku}</span>
+                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, background: BL, border: '1px solid #BFDBFE', padding: '1px 5px', fontWeight: 500, flexShrink: 0, letterSpacing: '0.03em' }}>{s.codigo_barras || s.sku || '—'}</span>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: i === 0 ? 600 : 400 }}>
                       {s.nombre}
                     </span>

@@ -168,7 +168,7 @@ export default function SoporteScreen() {
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 60px', padding: '9px 16px', borderBottom: i < actividad.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.producto?.nombre || '—'}</div>
-                    {a.producto?.sku && <div style={{ fontSize: 11, color: '#9CA3AF' }}>{a.producto.sku}</div>}
+                    {(a.producto?.codigo_barras || a.producto?.sku) && <div style={{ fontSize: 11, color: '#9CA3AF' }}>{a.producto.codigo_barras || a.producto.sku}</div>}
                   </div>
                   <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.zona?.nombre || '—'}</div>
                   <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.usuario?.nombre || '—'}</div>

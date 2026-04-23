@@ -303,7 +303,7 @@ export default function InventariosScreen() {
                                     <>
                                       {/* tabla header */}
                                       <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 56px', padding: '7px 14px', background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
-                                        {['SKU', 'Producto', 'Cant.'].map((h, i) => (
+                                        {['Cód. Barras', 'Producto', 'Cant.'].map((h, i) => (
                                           <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 ? 'right' : 'left' }}>{h}</div>
                                         ))}
                                       </div>
@@ -311,7 +311,7 @@ export default function InventariosScreen() {
                                       {rows.map((c, i) => (
                                         <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 56px', padding: '9px 14px', borderBottom: i < rows.length - 1 ? '1px solid #F9FAFB' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                                           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 5px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {c.producto?.sku || '—'}
+                                            {c.producto?.codigo_barras || c.producto?.sku || '—'}
                                           </div>
                                           <div style={{ paddingLeft: 8, minWidth: 0 }}>
                                             <div style={{ fontWeight: 500, fontSize: 13, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.producto?.nombre}</div>

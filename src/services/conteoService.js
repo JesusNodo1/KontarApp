@@ -95,19 +95,20 @@ export async function finalizarInventario(inventario_id) {
 export async function getConteosPorZona(zona_id) {
   const { data } = await supabase
     .from('conteos')
-    .select('id, cantidad, updated_at, producto:producto_id(id, nombre, variante, sku)')
+    .select('id, cantidad, updated_at, producto:producto_id(id, nombre, variante, sku, codigo_barras)')
     .eq('zona_id', zona_id)
     .order('updated_at', { ascending: false })
 
   return (data || []).map(c => ({
-    id:          c.producto.id, // usamos producto_id como id del item en el estado local
-    conteo_id:   c.id,
-    producto_id: c.producto.id,
-    nombre:      c.producto.nombre,
-    variante:    c.producto.variante,
-    sku:         c.producto.sku,
-    cantidad:    c.cantidad,
-    ts:          new Date(c.updated_at),
+    id:            c.producto.id, // usamos producto_id como id del item en el estado local
+    conteo_id:     c.id,
+    producto_id:   c.producto.id,
+    nombre:        c.producto.nombre,
+    variante:      c.producto.variante,
+    sku:           c.producto.sku,
+    codigo_barras: c.producto.codigo_barras,
+    cantidad:      c.cantidad,
+    ts:            new Date(c.updated_at),
   }))
 }
 
