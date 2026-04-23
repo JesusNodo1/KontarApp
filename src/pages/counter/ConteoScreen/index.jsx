@@ -117,16 +117,22 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
   }, [])
 
-  // Auto-focus del input: el scanner HW envía keystrokes al input enfocado.
-  // Con inputMode="none" el teclado virtual NO se despliega al enfocar,
-  // pero el input igual recibe los caracteres del scanner (vía IME o keydown).
+  const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
+
+  // Auto-focus del input del scanner.
+  // El focus se hace con delay para quedar FUERA de la "user activation"
+  // de Chromium: sin activación del usuario en curso, element.focus() enfoca
+  // el input pero no despliega el teclado virtual en Android.
+  const focusScan = useCallback(() => {
+    setTimeout(() => {
+      try { inpRef.current?.focus({ preventScroll: true }) } catch {}
+    }, 350)
+  }, [])
+
   useEffect(() => {
     if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    const id = requestAnimationFrame(() => inpRef.current?.focus())
-    return () => cancelAnimationFrame(id)
-  }, [loadingC, sub, modo, mOpen, camO, dupWarning, prod])
-
-  const tFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 500) }
+    focusScan()
+  }, [loadingC, sub, mOpen, camO, dupWarning, focusScan])
 
   // Guardar en DB y actualizar estado local
   // increment=true → suma c a la cantidad existente (modo unitario)
@@ -314,49 +320,13 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
       playBeep(isDup ? 'sum' : 'ok'); tFlash()
       await sl(120); await reg(p, 1, true)
-      setQuery(''); inpRef.current?.focus()
+      setQuery(''); focusScan()
     }
     else { setProd(p); setCantidad(1); setQuery(cod) }
   }, [modo, reg])
 
   // Mantener la ref al último procCod para que el listener global pueda llamarlo sin TDZ
   useEffect(() => { procCodRef.current = procCod }, [procCod])
-
-  // Captura keystrokes del scanner HW a nivel window.
-  // Con inputMode="none" algunos Android/WebView bloquean el IME del soft-keyboard,
-  // por lo que el scanner (DataWedge, keyboard wedge) puede no insertar caracteres
-  // en el input. Este listener captura los keydown del colector directamente,
-  // independiente del foco, y los agrupa por tiempo para armar el código.
-  useEffect(() => {
-    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    let buffer = ''
-    let lastT = 0
-    const GAP_MS = 80 // separación típica entre keystrokes de scanner
-    const onKeyDown = (e) => {
-      // Si el usuario está tipeando en otro input (cantidad, edición inline), no interferir
-      const el = e.target
-      if (el && el !== inpRef.current && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
-      const now = Date.now()
-      if (now - lastT > GAP_MS) buffer = ''
-      lastT = now
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        if (buffer.length >= 2) {
-          const code = buffer
-          buffer = ''
-          e.preventDefault()
-          setQuery(code)
-          procCodRef.current?.(code)
-        }
-        return
-      }
-      if (e.key.length === 1) {
-        buffer += e.key
-        setQuery(buffer)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [loadingC, sub, mOpen, camO, dupWarning])
 
   const handleConf = async () => {
     if (!prod || cantidad < 1) return
@@ -370,7 +340,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     await reg(prod, cantidad, false)
     playBeep('ok'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
-    inpRef.current?.focus()
+    focusScan()
   }
 
   const handleSumarDup = async () => {
@@ -380,7 +350,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     await reg(p, existente + nueva, false)
     playBeep('sum'); tFlash()
     setProd(null); setQuery(''); setCantidad(1); setConfirming(false)
-    inpRef.current?.focus()
+    focusScan()
   }
 
   /* ── edición inline de cantidad en reporte ── */
@@ -397,7 +367,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     if (esNuevo) {
       await reg(p, cant); playBeep('ok'); tFlash()
       setMOpen(false); setProd(null); setQuery(''); setCantidad(1)
-      inpRef.current?.focus(); return
+      focusScan(); return
     }
     setProd(p); setQuery(p.sku); setCantidad(1); setModo('total'); setMOpen(false)
   }
@@ -600,13 +570,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             <div style={{ display: 'flex' }}>
               <input
                 ref={inpRef} type="search"
-                inputMode="none"
+                inputMode="text"
                 placeholder="Listo para escanear..."
                 name="kontar-scan-x7k2" value={query}
-                readOnly
+                onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
+                onKeyDown={e => { if (e.key === 'Enter') procCod(e.currentTarget.value) }}
                 autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                 className={noEnc ? 'shake' : ''}
-                style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff', caretColor: 'transparent' }}
+                style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff' }}
                 onFocus={e => { if (!noEnc) e.target.style.borderColor = B }}
                 onBlur={e => { if (!noEnc) e.target.style.borderColor = '#D1D5DB' }}
               />
