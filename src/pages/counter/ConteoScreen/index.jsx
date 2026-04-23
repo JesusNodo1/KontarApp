@@ -443,7 +443,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   const totalU  = conteos.reduce((s, c) => s + c.cantidad, 0)
   const ultimo  = conteos[0] || null
-  const fmtH    = ts => ts.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  const fmtH    = ts => ts.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   const handleBack = () => { if (sub === 'reporte') setSub('conteo'); else onBack() }
 
   if (loadingC) {
@@ -680,7 +680,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             <div style={{ display: 'flex' }}>
               <input
                 ref={inpRef} type="search"
-                inputMode="text"
+                inputMode="numeric"
                 placeholder="Listo para escanear..."
                 name="kontar-scan-x7k2" value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
@@ -753,23 +753,25 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             )}
           </div>
 
-          {/* últimos 5 contados */}
+          {/* últimos 2 scans individuales (de la sesión) */}
           <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '10px 14px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>
-              Últimos {Math.min(5, conteos.length)} contados
+              Últimos {Math.min(2, scans.length)} contados
             </div>
-            {conteos.length === 0 ? (
+            {scans.length === 0 ? (
               <div style={{ fontSize: 12, color: '#9CA3AF' }}>Ningún producto contado aún</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {conteos.slice(0, 5).map((c, i) => (
-                  <div key={c.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {scans.slice(0, 2).map((s, i) => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ background: i === 0 ? GL : '#fff', border: `1px solid ${i === 0 ? '#6EE7B7' : '#E5E7EB'}`, minWidth: 32, height: 22, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: i === 0 ? G : '#374151' }}>{c.cantidad}</span>
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: i === 0 ? G : '#374151' }}>
+                        {s.delta >= 0 ? '+' : ''}{s.delta}
+                      </span>
                     </div>
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, background: BL, border: '1px solid #BFDBFE', padding: '1px 5px', fontWeight: 500, flexShrink: 0, letterSpacing: '0.03em' }}>{c.sku}</span>
+                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: B, background: BL, border: '1px solid #BFDBFE', padding: '1px 5px', fontWeight: 500, flexShrink: 0, letterSpacing: '0.03em' }}>{s.sku}</span>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: i === 0 ? 600 : 400 }}>
-                      {c.nombre}
+                      {s.nombre}
                     </span>
                   </div>
                 ))}
