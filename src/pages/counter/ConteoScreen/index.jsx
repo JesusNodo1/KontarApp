@@ -322,6 +322,42 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   // Mantener la ref al último procCod para que el listener global pueda llamarlo sin TDZ
   useEffect(() => { procCodRef.current = procCod }, [procCod])
 
+  // Captura keystrokes del scanner HW a nivel window.
+  // Con inputMode="none" algunos Android/WebView bloquean el IME del soft-keyboard,
+  // por lo que el scanner (DataWedge, keyboard wedge) puede no insertar caracteres
+  // en el input. Este listener captura los keydown del colector directamente,
+  // independiente del foco, y los agrupa por tiempo para armar el código.
+  useEffect(() => {
+    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
+    let buffer = ''
+    let lastT = 0
+    const GAP_MS = 80 // separación típica entre keystrokes de scanner
+    const onKeyDown = (e) => {
+      // Si el usuario está tipeando en otro input (cantidad, edición inline), no interferir
+      const el = e.target
+      if (el && el !== inpRef.current && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return
+      const now = Date.now()
+      if (now - lastT > GAP_MS) buffer = ''
+      lastT = now
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (buffer.length >= 2) {
+          const code = buffer
+          buffer = ''
+          e.preventDefault()
+          setQuery(code)
+          procCodRef.current?.(code)
+        }
+        return
+      }
+      if (e.key.length === 1) {
+        buffer += e.key
+        setQuery(buffer)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [loadingC, sub, mOpen, camO, dupWarning])
+
   const handleConf = async () => {
     if (!prod || cantidad < 1) return
     const existing = conteosRef.current.find(x => x.producto_id === prod.id)
@@ -567,11 +603,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                 inputMode="none"
                 placeholder="Listo para escanear..."
                 name="kontar-scan-x7k2" value={query}
-                onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
-                onKeyDown={e => { if (e.key === 'Enter') procCod(e.currentTarget.value) }}
+                readOnly
                 autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                 className={noEnc ? 'shake' : ''}
-                style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff' }}
+                style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff', caretColor: 'transparent' }}
                 onFocus={e => { if (!noEnc) e.target.style.borderColor = B }}
                 onBlur={e => { if (!noEnc) e.target.style.borderColor = '#D1D5DB' }}
               />
