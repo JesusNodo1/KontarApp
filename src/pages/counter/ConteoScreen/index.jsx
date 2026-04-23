@@ -120,42 +120,11 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     }
   }, [])
 
-  // Captura global de keystrokes del scanner HW a nivel de document.
-  // Evita tener que enfocar el input (lo que dispara el teclado virtual y
-  // la barra de autofill en Android). Así el teclado solo aparece cuando el
-  // usuario hace doble toque explícito sobre el input.
+  // Auto-focus del input: el scanner HW envía keystrokes al input enfocado.
+  // Con inputMode="none" el teclado virtual NO se despliega al enfocar,
+  // pero el input igual recibe los caracteres del scanner (vía IME o keydown).
   useEffect(() => {
     if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    if (manualKb) return
-    let buffer = ''
-    let lastTs = 0
-    const onKey = (e) => {
-      const tgt = e.target
-      if (tgt && (tgt.tagName === 'TEXTAREA' || (tgt.tagName === 'INPUT' && tgt !== inpRef.current) || tgt.isContentEditable)) return
-      const now = Date.now()
-      if (now - lastTs > 400) buffer = ''
-      lastTs = now
-      if (e.key === 'Enter') {
-        if (buffer) { procCodRef.current?.(buffer); buffer = '' }
-        e.preventDefault()
-        return
-      }
-      if (e.key.length === 1) {
-        buffer += e.key
-        setQuery(buffer)
-        setNoEnc(false)
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [loadingC, sub, mOpen, camO, dupWarning, manualKb])
-
-  // Auto-focus del input: el IME de Android solo rutea los keystrokes del
-  // scanner HW si hay un input enfocado. Como el input es readOnly + inputMode="none"
-  // cuando !manualKb, enfocarlo NO despliega el teclado virtual.
-  useEffect(() => {
-    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    if (manualKb) return
     const id = requestAnimationFrame(() => inpRef.current?.focus())
     return () => cancelAnimationFrame(id)
   }, [loadingC, sub, modo, mOpen, camO, dupWarning, prod, manualKb])
@@ -618,11 +587,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
               <input
                 ref={inpRef} type="search"
                 inputMode={manualKb ? 'text' : 'none'}
-                readOnly={!manualKb}
                 placeholder={manualKb ? 'Escribí el código...' : 'Listo para escanear... (doble toque para escribir)'}
                 name="kontar-scan-x7k2" value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
-                onKeyDown={e => { if (e.key === 'Enter' && manualKb) procCod(query) }}
+                onKeyDown={e => { if (e.key === 'Enter') procCod(e.currentTarget.value) }}
                 onClick={handleInputTap}
                 autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                 className={noEnc ? 'shake' : ''}
