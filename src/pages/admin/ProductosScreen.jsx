@@ -174,7 +174,7 @@ export default function ProductosScreen() {
           </span>
           <input
             type="text" placeholder="Buscar por nombre, variante, SKU o código..."
-            value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            value={busqueda} onChange={e => setBusqueda(e.target.value)} autoComplete="off"
             style={{ width: '100%', height: 42, border: '2px solid #E5E7EB', paddingLeft: 38, paddingRight: 14, fontSize: 14, color: '#111827', background: '#fff' }}
             onFocus={e => e.target.style.borderColor = B}
             onBlur={e => e.target.style.borderColor = '#E5E7EB'}
@@ -276,7 +276,7 @@ export default function ProductosScreen() {
                 <div key={key}>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>{label}</div>
                   <input
-                    type="text" placeholder={ph} value={form[key]}
+                    type="text" placeholder={ph} value={form[key]} autoComplete="off"
                     onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                     style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB' }}
                     onFocus={e => e.target.style.borderColor = B}

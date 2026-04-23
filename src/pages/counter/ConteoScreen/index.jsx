@@ -453,7 +453,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                         onChange={e => setEVal(e.target.value)}
                         onBlur={() => handleEditBlur(c, eVal)}
                         onKeyDown={e => { if (e.key === 'Enter') handleEditBlur(c, eVal) }}
-                        autoFocus
+                        autoFocus autoComplete="off"
                         style={{ width: 50, height: 34, border: `2px solid ${B}`, textAlign: 'center', fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: B, background: BL, outline: 'none' }}
                       />
                     : <div onClick={() => { setEId(c.producto_id); setEVal(String(c.cantidad)) }} style={{ minWidth: 40, height: 34, background: GL, border: '1px solid #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '0 8px' }}>
@@ -553,7 +553,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <button onClick={() => setCantidad(c => Math.max(1, c - 1))} style={{ width: 52, height: 52, background: G, color: '#fff', border: 'none', fontSize: 28, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                   <input
-                    type="number" inputMode="numeric" value={cantidad}
+                    type="number" inputMode="numeric" value={cantidad} autoComplete="off"
                     onChange={e => setCantidad(Math.max(1, parseInt(e.target.value) || 1))}
                     style={{ width: 80, height: 52, border: '2px solid #E5E7EB', borderLeft: 'none', borderRight: 'none', textAlign: 'center', fontWeight: 700, fontSize: 28, color: '#111827', outline: 'none' }}
                   />

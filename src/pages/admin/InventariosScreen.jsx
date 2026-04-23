@@ -410,7 +410,7 @@ export default function InventariosScreen() {
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre del inventario *</div>
                 <input
-                  type="text" placeholder="Ej: Inventario Agosto 2025" value={form.nombre}
+                  type="text" placeholder="Ej: Inventario Agosto 2025" value={form.nombre} autoComplete="off"
                   onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
                   style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box' }}
                   onFocus={e => e.target.style.borderColor = B}

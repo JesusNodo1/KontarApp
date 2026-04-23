@@ -186,7 +186,7 @@ export default function SucursalesScreen() {
             <form onSubmit={handleSucursal} style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre *</div>
-                <input autoFocus value={nomSuc} onChange={e => setNomSuc(e.target.value)} placeholder="Ej: Sucursal Centro"
+                <input autoFocus autoComplete="off" value={nomSuc} onChange={e => setNomSuc(e.target.value)} placeholder="Ej: Sucursal Centro"
                   style={inputStyle(false)}
                   onFocus={e => e.target.style.borderColor = B} onBlur={e => e.target.style.borderColor = '#E5E7EB'} />
               </div>
@@ -221,7 +221,7 @@ export default function SucursalesScreen() {
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre *</div>
-                <input autoFocus value={nomDep} onChange={e => setNomDep(e.target.value)} placeholder="Ej: Depósito Principal"
+                <input autoFocus autoComplete="off" value={nomDep} onChange={e => setNomDep(e.target.value)} placeholder="Ej: Depósito Principal"
                   style={inputStyle(false)}
                   onFocus={e => e.target.style.borderColor = B} onBlur={e => e.target.style.borderColor = '#E5E7EB'} />
               </div>

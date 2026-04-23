@@ -233,7 +233,7 @@ export default function LicenciasScreen() {
                     <div key={key}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
                       <input
-                        type={type}
+                        type={type} autoComplete="off"
                         value={form[key]}
                         onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                         placeholder={placeholder}
@@ -253,7 +253,7 @@ export default function LicenciasScreen() {
                     <div key={key}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
                       <input
-                        type="text"
+                        type="text" autoComplete="off"
                         value={form[key]}
                         onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                         placeholder={placeholder}
