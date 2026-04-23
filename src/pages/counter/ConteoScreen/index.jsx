@@ -558,11 +558,11 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             {/* scanner bar */}
             <div style={{ display: 'flex' }}>
               <input
-                ref={inpRef} type="text" inputMode="text" placeholder="Listo para escanear..."
-                value={query}
+                ref={inpRef} type="search" inputMode="text" placeholder="Listo para escanear..."
+                name="kontar-scan-x7k2" value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
                 onKeyDown={e => { if (e.key === 'Enter') procCod(query) }}
-                autoComplete="off" spellCheck={false}
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
                 className={noEnc ? 'shake' : ''}
                 style={{ flex: 1, height: 46, border: noEnc ? '2px solid #EF4444' : '2px solid #D1D5DB', borderRight: 'none', padding: '0 14px', fontSize: 16, color: '#111827', background: '#fff' }}
                 onFocus={e => { if (!noEnc) e.target.style.borderColor = B }}
