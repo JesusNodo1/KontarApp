@@ -122,13 +122,27 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   // Auto-focus del input del scanner.
   // El focus se hace con delay para quedar FUERA de la "user activation"
-  // de Chromium: sin activación del usuario en curso, element.focus() enfoca
-  // el input pero no despliega el teclado virtual en Android.
+  // de Chromium (sin activación en curso, element.focus() no dispara el teclado
+  // virtual). Además, si la Virtual Keyboard API está disponible, pedimos
+  // explícitamente ocultar el teclado — esto cubre el caso del regreso por
+  // botón atrás, donde Chromium mantiene activación "transient" por varios
+  // segundos y el delay solo no alcanza.
+  const focusTimerRef = useRef(null)
   const focusScan = useCallback(() => {
-    setTimeout(() => {
-      try { inpRef.current?.focus({ preventScroll: true }) } catch {}
-    }, 350)
+    clearTimeout(focusTimerRef.current)
+    focusTimerRef.current = setTimeout(() => {
+      try {
+        inpRef.current?.focus({ preventScroll: true })
+        if ('virtualKeyboard' in navigator) {
+          navigator.virtualKeyboard.overlaysContent = true
+          navigator.virtualKeyboard.hide?.()
+        }
+      } catch {}
+    }, 500)
   }, [])
+
+  // Limpia timer pendiente al desmontar para que no dispare sobre un input viejo
+  useEffect(() => () => clearTimeout(focusTimerRef.current), [])
 
   useEffect(() => {
     if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
