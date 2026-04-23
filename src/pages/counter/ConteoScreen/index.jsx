@@ -122,31 +122,28 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   // Auto-focus del input del scanner.
   // El focus se hace con delay para quedar FUERA de la "user activation"
-  // de Chromium (sin activación en curso, element.focus() no dispara el teclado
-  // virtual). Además, si la Virtual Keyboard API está disponible, pedimos
-  // explícitamente ocultar el teclado — esto cubre el caso del regreso por
-  // botón atrás, donde Chromium mantiene activación "transient" por varios
-  // segundos y el delay solo no alcanza.
+  // de Chromium: sin activación del usuario en curso, element.focus() enfoca
+  // el input pero no despliega el teclado virtual en Android.
+  // `long=true` → delay más largo, usado solo en el primer focus después de
+  // montar la pantalla. Cubre el caso de re-entrada tras back-button, donde
+  // los taps recientes de navegación mantienen la "transient activation"
+  // activa por varios cientos de ms.
   const focusTimerRef = useRef(null)
-  const focusScan = useCallback(() => {
+  const focusScan = useCallback((long = false) => {
     clearTimeout(focusTimerRef.current)
     focusTimerRef.current = setTimeout(() => {
-      try {
-        inpRef.current?.focus({ preventScroll: true })
-        if ('virtualKeyboard' in navigator) {
-          navigator.virtualKeyboard.overlaysContent = true
-          navigator.virtualKeyboard.hide?.()
-        }
-      } catch {}
-    }, 500)
+      try { inpRef.current?.focus({ preventScroll: true }) } catch {}
+    }, long ? 750 : 350)
   }, [])
 
   // Limpia timer pendiente al desmontar para que no dispare sobre un input viejo
   useEffect(() => () => clearTimeout(focusTimerRef.current), [])
 
+  const firstFocusRef = useRef(true)
   useEffect(() => {
     if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
-    focusScan()
+    focusScan(firstFocusRef.current)
+    firstFocusRef.current = false
   }, [loadingC, sub, mOpen, camO, dupWarning, focusScan])
 
   // Guardar en DB y actualizar estado local.
