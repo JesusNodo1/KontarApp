@@ -244,18 +244,61 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   useEffect(() => () => rdrRef.current?.reset(), [])
 
-  // Cuando la cámara está abierta, el botón "atrás" del colector/navegador
-  // debe cerrar SOLO la cámara (no salir de la pantalla de conteo).
+  // Intercepta el botón "atrás" del colector/navegador para cerrar overlays
+  // internos (cámara, modal de búsqueda, aviso de duplicado, sub-vista reporte)
+  // en vez de salir de la pantalla de conteo.
+  // Todos los estados pusheados incluyen `kontar: 'conteo'` para que el handler
+  // de CounterApp no navegue a inventario cuando hacemos pop.
+  const pushOverlay = (marker) => {
+    window.history.pushState({ kontar: 'conteo', overlay: marker }, '')
+  }
+  const consumeOverlay = (marker) => {
+    if (window.history.state?.overlay === marker) window.history.back()
+  }
+
   useEffect(() => {
     if (!camO) return
-    window.history.pushState({ cam: true }, '')
+    pushOverlay('cam')
     const onPop = () => cerrarCam()
     window.addEventListener('popstate', onPop)
     return () => {
       window.removeEventListener('popstate', onPop)
-      if (window.history.state?.cam) window.history.back()
+      consumeOverlay('cam')
     }
   }, [camO, cerrarCam])
+
+  useEffect(() => {
+    if (!mOpen) return
+    pushOverlay('busqueda')
+    const onPop = () => { setMOpen(false); setMCodInicial('') }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      consumeOverlay('busqueda')
+    }
+  }, [mOpen])
+
+  useEffect(() => {
+    if (!dupWarning) return
+    pushOverlay('dup')
+    const onPop = () => setDupWarning(null)
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      consumeOverlay('dup')
+    }
+  }, [dupWarning])
+
+  useEffect(() => {
+    if (sub !== 'reporte') return
+    pushOverlay('reporte')
+    const onPop = () => setSub('conteo')
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      consumeOverlay('reporte')
+    }
+  }, [sub])
 
   /* ── búsqueda por código ── */
   const procCod = useCallback(async cod => {

@@ -123,7 +123,10 @@ export default function CounterApp() {
 
   /* ─── Botón atrás del navegador ─────────────────────────────── */
   useEffect(() => {
-    const handlePop = () => {
+    const handlePop = (e) => {
+      // Si el estado que quedó tras el pop sigue siendo "conteo", significa
+      // que solo se cerró un overlay interno (ej: cámara) — no navegamos.
+      if (e.state?.kontar === 'conteo') return
       if (screenRef.current === 'conteo') {
         setZonaActiva(null); setScreen('inventario'); refreshZonas()
       }
