@@ -586,7 +586,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             <div style={{ display: 'flex' }}>
               <input
                 ref={inpRef} type="search"
-                inputMode={manualKb ? 'text' : 'none'}
+                inputMode="text"
                 placeholder={manualKb ? 'Escribí el código...' : 'Listo para escanear... (doble toque para escribir)'}
                 name="kontar-scan-x7k2" value={query}
                 onChange={e => { setQuery(e.target.value); setNoEnc(false) }}
