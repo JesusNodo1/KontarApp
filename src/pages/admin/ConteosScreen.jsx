@@ -109,11 +109,13 @@ export default function ConteosScreen() {
   const [zonaRows, setZonaRows] = useState([])
   const [loadingZ, setLoadingZ] = useState(false)
   const [qZ, setQZ] = useState('')
+  const [errZ, setErrZ] = useState('')
 
   // todo el inventario
   const [allRows, setAllRows] = useState([])
   const [loadingA, setLoadingA] = useState(false)
   const [qA, setQA] = useState('')
+  const [errA, setErrA] = useState('')
 
   useEffect(() => {
     (async () => {
@@ -131,17 +133,29 @@ export default function ConteosScreen() {
   }, [])
 
   const openZona = useCallback(async (z) => {
-    setSelZona(z); setView('zona'); setQZ('')
+    setSelZona(z); setView('zona'); setQZ(''); setErrZ(''); setZonaRows([])
     setLoadingZ(true)
-    try { setZonaRows(await getZonaDetalle(z.id)) }
-    finally { setLoadingZ(false) }
+    try {
+      const rows = await getZonaDetalle(z.id)
+      console.log('[Conteos] getZonaDetalle', z.id, '→', rows.length, 'filas', rows)
+      setZonaRows(rows)
+    } catch (e) {
+      console.error('[Conteos] getZonaDetalle error', e)
+      setErrZ(e.message || String(e))
+    } finally { setLoadingZ(false) }
   }, [])
 
   const openTodo = useCallback(async () => {
-    setView('todo'); setQA('')
+    setView('todo'); setQA(''); setErrA(''); setAllRows([])
     setLoadingA(true)
-    try { setAllRows(await getConteosInventario(selInv.id)) }
-    finally { setLoadingA(false) }
+    try {
+      const rows = await getConteosInventario(selInv.id)
+      console.log('[Conteos] getConteosInventario', selInv.id, '→', rows.length, 'filas', rows)
+      setAllRows(rows)
+    } catch (e) {
+      console.error('[Conteos] getConteosInventario error', e)
+      setErrA(e.message || String(e))
+    } finally { setLoadingA(false) }
   }, [selInv])
 
   const invsFiltradas = useMemo(() => {
@@ -298,6 +312,7 @@ export default function ConteosScreen() {
       {view === 'zona' && selZona && (
         <>
           <SearchInput value={qZ} onChange={setQZ} placeholder="Buscar por producto, código, SKU, usuario..." />
+          {errZ && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#DC2626' }}>✕ {errZ}</div>}
           {loadingZ
             ? <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
             : <ConteosTable rows={zonaRowsFiltradas} showZona={false} />}
@@ -308,6 +323,7 @@ export default function ConteosScreen() {
       {view === 'todo' && selInv && (
         <>
           <SearchInput value={qA} onChange={setQA} placeholder="Buscar por producto, código, SKU, zona, usuario..." />
+          {errA && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#DC2626' }}>✕ {errA}</div>}
           {loadingA
             ? <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
             : <ConteosTable rows={allRowsFiltradas} showZona={true} />}
