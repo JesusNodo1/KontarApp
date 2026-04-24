@@ -20,7 +20,7 @@ export async function getDashboardData() {
       supabase.from('conteos').select('id', { count: 'exact', head: true }).eq('inventario_id', inv.id),
       supabase.from('zonas').select('id, finalizada').eq('inventario_id', inv.id),
       supabase.from('conteos')
-        .select('cantidad, updated_at, zona:zona_id(nombre), usuario:usuario_id(nombre)')
+        .select('cantidad, updated_at, zona:zona_id(nombre), usuario:usuario_id!conteos_usuario_perfil_fkey(nombre)')
         .eq('inventario_id', inv.id)
         .order('updated_at', { ascending: false })
         .limit(10),
@@ -84,7 +84,7 @@ export async function getInventarioDetalle(inventario_id) {
       .eq('inventario_id', inventario_id),
     supabase
       .from('conteos')
-      .select('cantidad, updated_at, producto:producto_id(nombre, variante, sku, codigo_barras), zona:zona_id(nombre), usuario:usuario_id(nombre)')
+      .select('cantidad, updated_at, producto:producto_id(nombre, variante, sku, codigo_barras), zona:zona_id(nombre), usuario:usuario_id!conteos_usuario_perfil_fkey(nombre)')
       .eq('inventario_id', inventario_id)
       .order('updated_at', { ascending: false })
       .limit(30),
@@ -107,7 +107,7 @@ export async function getInventarioDetalle(inventario_id) {
 export async function getConteosInventario(inventario_id) {
   const { data, error } = await supabase
     .from('conteos')
-    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre), usuario:usuario_id(nombre)')
+    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre), usuario:usuario_id!conteos_usuario_perfil_fkey(nombre)')
     .eq('inventario_id', inventario_id)
     .order('updated_at', { ascending: false })
   if (error) { console.error('getConteosInventario', error); throw new Error(error.message) }
@@ -117,7 +117,7 @@ export async function getConteosInventario(inventario_id) {
 export async function getZonaDetalle(zona_id) {
   const { data } = await supabase
     .from('conteos')
-    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), usuario:usuario_id(nombre)')
+    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), usuario:usuario_id!conteos_usuario_perfil_fkey(nombre)')
     .eq('zona_id', zona_id)
     .order('updated_at', { ascending: false })
   return data || []
