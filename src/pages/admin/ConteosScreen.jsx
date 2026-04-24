@@ -135,27 +135,17 @@ export default function ConteosScreen() {
   const openZona = useCallback(async (z) => {
     setSelZona(z); setView('zona'); setQZ(''); setErrZ(''); setZonaRows([])
     setLoadingZ(true)
-    try {
-      const rows = await getZonaDetalle(z.id)
-      console.log('[Conteos] getZonaDetalle', z.id, '→', rows.length, 'filas', rows)
-      setZonaRows(rows)
-    } catch (e) {
-      console.error('[Conteos] getZonaDetalle error', e)
-      setErrZ(e.message || String(e))
-    } finally { setLoadingZ(false) }
+    try { setZonaRows(await getZonaDetalle(z.id)) }
+    catch (e) { setErrZ(e.message || String(e)) }
+    finally { setLoadingZ(false) }
   }, [])
 
   const openTodo = useCallback(async () => {
     setView('todo'); setQA(''); setErrA(''); setAllRows([])
     setLoadingA(true)
-    try {
-      const rows = await getConteosInventario(selInv.id)
-      console.log('[Conteos] getConteosInventario', selInv.id, '→', rows.length, 'filas', rows)
-      setAllRows(rows)
-    } catch (e) {
-      console.error('[Conteos] getConteosInventario error', e)
-      setErrA(e.message || String(e))
-    } finally { setLoadingA(false) }
+    try { setAllRows(await getConteosInventario(selInv.id)) }
+    catch (e) { setErrA(e.message || String(e)) }
+    finally { setLoadingA(false) }
   }, [selInv])
 
   const invsFiltradas = useMemo(() => {
