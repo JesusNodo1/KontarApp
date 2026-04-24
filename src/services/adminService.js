@@ -104,6 +104,15 @@ export async function getInventarioDetalle(inventario_id) {
   }
 }
 
+export async function getConteosInventario(inventario_id) {
+  const { data } = await supabase
+    .from('conteos')
+    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre), usuario:usuario_id(nombre)')
+    .eq('inventario_id', inventario_id)
+    .order('updated_at', { ascending: false })
+  return data || []
+}
+
 export async function getZonaDetalle(zona_id) {
   const { data } = await supabase
     .from('conteos')

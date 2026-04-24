@@ -11,6 +11,7 @@ import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
+import ConteosScreen      from './pages/admin/ConteosScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
 import SoporteSelectScreen from './pages/soporte/SoporteSelectScreen'
 import SoporteLayout      from './pages/soporte/SoporteLayout'
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="productos"   element={<ProductosScreen />} />
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />
+            <Route path="conteos"     element={<ConteosScreen />} />
             <Route path="sucursales"  element={<SucursalesScreen />} />
           </Route>
 
