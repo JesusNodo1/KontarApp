@@ -31,7 +31,9 @@ export default function ProductosScreen() {
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
   const [syncing,    setSyncing]    = useState(false)
   const [syncMsg,    setSyncMsg]    = useState('')
+  const [pagina,     setPagina]     = useState(1)
   const fileRef = useRef(null)
+  const POR_PAGINA = 50
 
   const handleSincronizarApi = async () => {
     if (!confirm('Sincronizar sucursales, depósitos y productos desde la API externa? Esto puede demorar varios segundos.')) return
@@ -69,6 +71,13 @@ export default function ProductosScreen() {
       (p.codigo_barras || '').includes(busqueda)
     )
   })
+
+  // ── paginación ───────────────────────────────────────────────
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const inicio       = (paginaActual - 1) * POR_PAGINA
+  const paginados    = filtrados.slice(inicio, inicio + POR_PAGINA)
+  useEffect(() => { setPagina(1) }, [busqueda, mostrarInactivos])
 
   // ── abrir modal ───────────────────────────────────────────────
   const abrirCrear = () => { setEditando(null); setForm(FORM_VACÍO); setErrorMsg(''); setShowModal(true) }
@@ -281,13 +290,13 @@ export default function ProductosScreen() {
           </div>
           <div style={{ overflowX: 'auto' }}>
             {filtrados.length > 0
-              ? filtrados.map((p, i) => (
+              ? paginados.map((p, i) => (
                   <div
                     key={p.id}
                     style={{
                       display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px',
                       padding: '11px 16px',
-                      borderBottom: i < filtrados.length - 1 ? '1px solid #F3F4F6' : 'none',
+                      borderBottom: i < paginados.length - 1 ? '1px solid #F3F4F6' : 'none',
                       alignItems: 'center',
                       background: !p.activo ? '#FAFAFA' : (i % 2 === 0 ? '#fff' : '#FAFAFA'),
                       opacity: p.activo ? 1 : 0.55,
@@ -332,6 +341,36 @@ export default function ProductosScreen() {
               )
             }
           </div>
+
+          {/* paginación */}
+          {filtrados.length > POR_PAGINA && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#F9FAFB', borderTop: '1px solid #E5E7EB', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: '#6B7280' }}>
+                Mostrando <b>{inicio + 1}</b>–<b>{Math.min(inicio + POR_PAGINA, filtrados.length)}</b> de <b>{filtrados.length}</b>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={() => setPagina(1)} disabled={paginaActual === 1}
+                  style={{ padding: '6px 10px', border: '1px solid #E5E7EB', background: paginaActual === 1 ? '#F3F4F6' : '#fff', color: paginaActual === 1 ? '#9CA3AF' : '#374151', fontSize: 12, fontWeight: 600, cursor: paginaActual === 1 ? 'not-allowed' : 'pointer' }}
+                >« Inicio</button>
+                <button
+                  onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
+                  style={{ padding: '6px 10px', border: '1px solid #E5E7EB', background: paginaActual === 1 ? '#F3F4F6' : '#fff', color: paginaActual === 1 ? '#9CA3AF' : '#374151', fontSize: 12, fontWeight: 600, cursor: paginaActual === 1 ? 'not-allowed' : 'pointer' }}
+                >‹ Anterior</button>
+                <span style={{ padding: '6px 12px', fontSize: 12, color: '#111827', fontWeight: 700, background: BL, border: `1px solid ${B}33` }}>
+                  {paginaActual} / {totalPaginas}
+                </span>
+                <button
+                  onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
+                  style={{ padding: '6px 10px', border: '1px solid #E5E7EB', background: paginaActual === totalPaginas ? '#F3F4F6' : '#fff', color: paginaActual === totalPaginas ? '#9CA3AF' : '#374151', fontSize: 12, fontWeight: 600, cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer' }}
+                >Siguiente ›</button>
+                <button
+                  onClick={() => setPagina(totalPaginas)} disabled={paginaActual === totalPaginas}
+                  style={{ padding: '6px 10px', border: '1px solid #E5E7EB', background: paginaActual === totalPaginas ? '#F3F4F6' : '#fff', color: paginaActual === totalPaginas ? '#9CA3AF' : '#374151', fontSize: 12, fontWeight: 600, cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer' }}
+                >Final »</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
