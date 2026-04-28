@@ -139,6 +139,54 @@ export async function deleteConteo({ zona_id, producto_id }) {
 }
 
 /**
+ * Inserta un evento de scan individual (para el historial unitario persistente).
+ * Devuelve el row creado (con id).
+ */
+export async function addScan({ zona_id, inventario_id, cliente_id, producto_id, usuario_id, prev, next }) {
+  const { data, error } = await supabase
+    .from('conteo_scans')
+    .insert({ zona_id, inventario_id, cliente_id, producto_id, usuario_id, prev, next })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+/**
+ * Lista los scans de una zona, más nuevos primero, con info del producto embebida.
+ * Devuelve filas con shape similar al historial local (nombre, variante, codigo_barras, prev, next, delta, ts).
+ */
+export async function getScansPorZona(zona_id) {
+  const { data, error } = await supabase
+    .from('conteo_scans')
+    .select('id, prev, next, delta, created_at, producto_id, producto:producto_id(nombre, variante, sku, codigo_barras)')
+    .eq('zona_id', zona_id)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (error) throw new Error(error.message)
+  return (data || []).map(s => ({
+    id:            s.id,
+    producto_id:   s.producto_id,
+    nombre:        s.producto?.nombre,
+    variante:      s.producto?.variante,
+    sku:           s.producto?.sku,
+    codigo_barras: s.producto?.codigo_barras,
+    prev:          s.prev,
+    next:          s.next,
+    delta:         s.delta,
+    ts:            new Date(s.created_at),
+  }))
+}
+
+/**
+ * Borra un scan por id (usado por "deshacer").
+ */
+export async function deleteScan(id) {
+  const { error } = await supabase.from('conteo_scans').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/**
  * Formato de fecha YYYY-MM-DD → DD/MM/YYYY
  */
 export function fmtFecha(d) {

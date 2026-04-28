@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { B, BD, BL, G, GD, GL } from '../../../constants/theme'
 import { bxCod } from '../../../services/productService'
 import { loadZx } from '../../../services/scanner'
-import { getConteosPorZona, upsertConteo, deleteConteo } from '../../../services/conteoService'
+import { getConteosPorZona, upsertConteo, deleteConteo, addScan, getScansPorZona, deleteScan } from '../../../services/conteoService'
 import Spinner from '../../../components/Spinner'
 import ModalCam from './ModalCam'
 import ModalBusqueda from './ModalBusqueda'
@@ -85,12 +85,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   // Mantener ref sincronizada para leer en callbacks async sin stale closure
   useEffect(() => { conteosRef.current = conteos }, [conteos])
 
-  // Cargar conteos existentes al entrar en la zona
+  // Cargar conteos existentes y el historial de scans al entrar en la zona
   useEffect(() => {
     setLoadingC(true)
-    getConteosPorZona(zona.id)
-      .then(data => setConteos(data))
-      .catch(() => setConteos([]))
+    Promise.all([
+      getConteosPorZona(zona.id).catch(() => []),
+      getScansPorZona(zona.id).catch(() => []),
+    ])
+      .then(([cs, sc]) => { setConteos(cs); setScans(sc) })
       .finally(() => setLoadingC(false))
   }, [zona.id])
 
@@ -184,8 +186,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   // Helper: registra + agrega entrada al historial de scans para poder deshacer.
   const regAndLog = useCallback(async (p, c, increment = false) => {
     const { prev, next } = await reg(p, c, increment)
-    setScans(s => [{
-      id:            `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    // Optimistic con id temporal para que aparezca al instante en la lista
+    const tmpId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const local = {
+      id:            tmpId,
       producto_id:   p.id,
       nombre:        p.nombre,
       variante:      p.variante,
@@ -195,9 +199,26 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       prev,
       next,
       ts:            new Date(),
-    }, ...s])
+    }
+    setScans(s => [local, ...s])
+    // Persistir en DB y reemplazar el id temporal por el real
+    try {
+      const cliente_id = inv.cliente_id ?? user.cliente_id
+      const saved = await addScan({
+        zona_id:       zona.id,
+        inventario_id: inv.id,
+        cliente_id,
+        producto_id:   p.id,
+        usuario_id:    user.id,
+        prev,
+        next,
+      })
+      setScans(s => s.map(x => x.id === tmpId ? { ...x, id: saved.id } : x))
+    } catch (e) {
+      console.error('[ConteoScreen] addScan error:', e)
+    }
     return { prev, next }
-  }, [reg])
+  }, [reg, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
 
   // Deshacer el último scan de la sesión: restaura la cantidad al valor previo.
   const undoLast = useCallback(async () => {
@@ -224,6 +245,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
           usuario_id:    user.id,
           cantidad:      last.prev,
         })
+      }
+      // Borrar también el evento de scan (si tiene id real, no temporal)
+      if (last.id && !String(last.id).startsWith('tmp-')) {
+        try { await deleteScan(last.id) } catch (e) { console.error('[ConteoScreen] deleteScan error:', e) }
       }
     } catch (e) {
       console.error('[ConteoScreen] undoLast error:', e)
@@ -566,8 +591,8 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 {scans.length === 0 ? (
                   <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-                    No hay scans en esta sesión.<br/>
-                    <span style={{ fontSize: 11 }}>(el historial unitario es por sesión, no persiste al salir)</span>
+                    No hay scans en esta zona aún.<br/>
+                    <span style={{ fontSize: 11 }}>(el historial unitario se guarda y se mantiene al salir)</span>
                   </div>
                 ) : scans.map((s, idx) => (
                   <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px,1fr) 2fr 52px', padding: '10px 12px', borderBottom: '1px solid #F3F4F6', background: idx === 0 ? GL : (idx % 2 === 1 ? '#FAFAFA' : '#fff'), alignItems: 'center' }}>
