@@ -61,9 +61,13 @@ export function AuthProvider({ children }) {
     try {
       const perfiles = await restGet(`perfiles?id=eq.${authUser.id}&select=nombre,rol,cliente_id`)
       const perfil = perfiles?.[0]
-      if (perfil) {
-        setUser({ id: authUser.id, email: authUser.email, ...perfil })
+      if (!perfil) return
+      let fuente_sync = 'manual'
+      if (perfil.cliente_id) {
+        const clientes = await restGet(`clientes?id=eq.${perfil.cliente_id}&select=fuente_sync`)
+        fuente_sync = clientes?.[0]?.fuente_sync || 'manual'
       }
+      setUser({ id: authUser.id, email: authUser.email, ...perfil, fuente_sync })
     } catch (err) {
       console.error('[AuthContext] _cargarPerfil error:', err)
     }

@@ -8,11 +8,16 @@ import {
   toggleProducto,
   importarProductosCSV,
 } from '../../services/adminService'
+import { sincronizarTodo } from '../../services/apiExternaService'
+import { useAuth } from '../../context/AuthContext'
 import Spinner from '../../components/Spinner'
 
 const FORM_VACÍO = { sku: '', nombre: '', variante: '', codigo_barras: '' }
 
 export default function ProductosScreen() {
+  const { user } = useAuth()
+  const apiHabilitada = user?.fuente_sync === 'api'
+
   const [productos,  setProductos]  = useState([])
   const [loading,    setLoading]    = useState(true)
   const [busqueda,   setBusqueda]   = useState('')
@@ -24,7 +29,26 @@ export default function ProductosScreen() {
   const [importing,  setImporting]  = useState(false)
   const [importMsg,  setImportMsg]  = useState('')
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
+  const [syncing,    setSyncing]    = useState(false)
+  const [syncMsg,    setSyncMsg]    = useState('')
   const fileRef = useRef(null)
+
+  const handleSincronizarApi = async () => {
+    if (!confirm('Sincronizar sucursales, depósitos y productos desde la API externa? Esto puede demorar varios segundos.')) return
+    setSyncing(true); setSyncMsg('Iniciando...')
+    try {
+      const r = await sincronizarTodo(setSyncMsg)
+      const partes = [`✓ ${r.sucursales} sucursales`, `${r.depositos} depósitos`, `${r.productos} productos`]
+      if (r.sinSucursal > 0) partes.push(`(${r.sinSucursal} depósitos sin sucursal)`)
+      if (r.descartadas > 0) partes.push(`(${r.descartadas} productos descartados)`)
+      setSyncMsg(partes.join(' · '))
+      await loadData()
+    } catch (e) {
+      setSyncMsg(`✕ ${e.message}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -140,6 +164,19 @@ export default function ProductosScreen() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {apiHabilitada && (
+            <button
+              onClick={handleSincronizarApi}
+              disabled={syncing}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: syncing ? '#F3F4F6' : '#fff', border: `2px solid ${G}`, color: G, fontWeight: 700, fontSize: 13, cursor: syncing ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
+              title="Sincroniza sucursales, depósitos y productos desde la API externa"
+            >
+              {syncing
+                ? <><Spinner /> Sincronizando...</>
+                : <><svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sincronizar API</>
+              }
+            </button>
+          )}
           <input type="file" ref={fileRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
           <button
             onClick={handleDescargarPlantilla}
@@ -168,6 +205,19 @@ export default function ProductosScreen() {
           </button>
         </div>
       </div>
+
+      {/* mensaje sync API */}
+      {syncMsg && (
+        <div style={{
+          background: syncMsg.startsWith('✓') ? GL : syncMsg.startsWith('✕') ? '#FEF2F2' : BL,
+          border:     `1px solid ${syncMsg.startsWith('✓') ? '#6EE7B7' : syncMsg.startsWith('✕') ? '#FECACA' : `${B}33`}`,
+          padding: '10px 14px', fontSize: 13,
+          color:      syncMsg.startsWith('✓') ? '#065F46' : syncMsg.startsWith('✕') ? '#DC2626' : '#1E40AF',
+          marginBottom: 16, fontWeight: 500
+        }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* mensaje importación */}
       {importMsg && (
