@@ -188,12 +188,18 @@ export async function getDiferencias(inventario_id) {
 
   const filas = Array.from(map.values()).map(r => {
     const dif = r.contado - r.teorico
+    let estado
+    if (r.teorico > 0 && r.contado === 0) estado = 'pendiente'   // aún no escaneado
+    else if (dif === 0)                   estado = 'ok'
+    else if (dif > 0 && r.teorico === 0)  estado = 'no-esperado'
+    else if (dif > 0)                     estado = 'sobrante'
+    else                                  estado = 'faltante'    // contado < teorico (faltante real)
     return {
       ...r,
       diferencia: dif,
-      pct: r.teorico > 0 ? (dif / r.teorico) * 100 : null,
+      pct:   r.teorico > 0 ? (dif / r.teorico) * 100 : null,
       valor: r.costo != null ? dif * r.costo : null,
-      estado: dif === 0 ? 'ok' : dif > 0 ? (r.teorico === 0 ? 'no-esperado' : 'sobrante') : 'faltante',
+      estado,
     }
   })
 
@@ -202,6 +208,7 @@ export async function getDiferencias(inventario_id) {
     resumen: {
       total:        filas.length,
       ok:           filas.filter(f => f.estado === 'ok').length,
+      pendientes:   filas.filter(f => f.estado === 'pendiente').length,
       faltantes:    filas.filter(f => f.estado === 'faltante').length,
       sobrantes:    filas.filter(f => f.estado === 'sobrante').length,
       noEsperados:  filas.filter(f => f.estado === 'no-esperado').length,

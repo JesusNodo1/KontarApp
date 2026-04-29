@@ -8,10 +8,11 @@ import Spinner from '../../components/Spinner'
 const norm = s => (s || '').toString().toLowerCase().trim()
 
 const ESTADO_LABEL = {
-  'ok':           { label: 'OK',         bg: GL,        color: '#065F46' },
-  'faltante':     { label: 'Faltante',   bg: '#FEF2F2', color: '#DC2626' },
-  'sobrante':     { label: 'Sobrante',   bg: '#FEF3C7', color: '#92400E' },
-  'no-esperado':  { label: 'No esperado',bg: '#EFF6FF', color: '#1D4ED8' },
+  'ok':           { label: 'OK',          bg: GL,        color: '#065F46' },
+  'pendiente':    { label: 'Pendiente',   bg: '#F3F4F6', color: '#6B7280' },
+  'faltante':     { label: 'Faltante',    bg: '#FEF2F2', color: '#DC2626' },
+  'sobrante':     { label: 'Sobrante',    bg: '#FEF3C7', color: '#92400E' },
+  'no-esperado':  { label: 'No esperado', bg: '#EFF6FF', color: '#1D4ED8' },
 }
 
 export default function DiferenciasPanel({ inventario }) {
@@ -125,12 +126,13 @@ export default function DiferenciasPanel({ inventario }) {
       {okMsg && <div style={{ background: GL, border: '1px solid #6EE7B7', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#065F46' }}>{okMsg}</div>}
 
       {/* resumen */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { lbl: 'Total',        val: r.total,       color: '#111827' },
-          { lbl: 'OK',           val: r.ok,          color: '#065F46' },
-          { lbl: 'Faltantes',    val: r.faltantes,   color: '#DC2626' },
-          { lbl: 'Sobrantes',    val: r.sobrantes,   color: '#92400E' },
+          { lbl: 'Total',     val: r.total,       color: '#111827' },
+          { lbl: 'OK',        val: r.ok,          color: '#065F46' },
+          { lbl: 'Pendientes',val: r.pendientes,  color: '#6B7280' },
+          { lbl: 'Faltantes', val: r.faltantes,   color: '#DC2626' },
+          { lbl: 'Sobrantes', val: r.sobrantes,   color: '#92400E' },
         ].map(x => (
           <div key={x.lbl} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 12px', textAlign: 'center' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>{x.lbl}</div>
@@ -160,6 +162,7 @@ export default function DiferenciasPanel({ inventario }) {
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {[
           { k: 'todos',       l: `Todos (${r.total ?? 0})` },
+          { k: 'pendiente',   l: `Pendientes (${r.pendientes ?? 0})` },
           { k: 'faltante',    l: `Faltantes (${r.faltantes ?? 0})` },
           { k: 'sobrante',    l: `Sobrantes (${r.sobrantes ?? 0})` },
           { k: 'no-esperado', l: `No esperados (${r.noEsperados ?? 0})` },
