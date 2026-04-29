@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { B, BL, G, GL } from '../../constants/theme'
 import {
   getInventarios, crearInventario, cerrarInventario,
@@ -7,7 +8,6 @@ import {
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
-import DiferenciasPanel from './DiferenciasPanel'
 
 const ESTADO_STYLE = {
   abierto: { bg: GL,        color: '#065F46', border: '#6EE7B7', label: 'Abierto' },
@@ -20,6 +20,7 @@ function fmtHora(iso) {
 }
 
 export default function InventariosScreen() {
+  const navigate = useNavigate()
   const [inventarios, setInventarios] = useState([])
   const [conteos,     setConteos]     = useState({})
   const [loading,     setLoading]     = useState(true)
@@ -41,8 +42,6 @@ export default function InventariosScreen() {
   const [zonaConteos,    setZonaConteos]    = useState({})     // { zona_id: [...conteos] }
   const [zonaLoading,    setZonaLoading]    = useState(null)   // zona_id cargando
 
-  // ── tabs del detalle ──────────────────────────────────────────
-  const [tab,            setTab]            = useState('resumen')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -67,7 +66,6 @@ export default function InventariosScreen() {
     setDetalleLoading(true)
     setZonaAbierta(null)
     setZonaConteos({})
-    setTab('resumen')
     try {
       const d = await getInventarioDetalle(inv.id)
       setDetalleData(d)
@@ -232,27 +230,20 @@ export default function InventariosScreen() {
               </div>
             </div>
 
-            {/* tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
-              {[
-                { k: 'resumen',     l: 'Resumen' },
-                { k: 'diferencias', l: 'Diferencias' },
-              ].map(t => {
-                const a = tab === t.k
-                return (
-                  <button key={t.k}
-                    onClick={() => setTab(t.k)}
-                    style={{ flex: 1, padding: '12px 0', background: a ? '#fff' : '#F9FAFB', border: 'none', borderBottom: `3px solid ${a ? B : 'transparent'}`, color: a ? B : '#6B7280', fontWeight: a ? 700 : 500, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
-                  >{t.l}</button>
-                )
-              })}
+            {/* acción: ver diferencias en página dedicada */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+              <button
+                onClick={() => navigate(`/admin/inventarios/${detalle.id}/diferencias`)}
+                style={{ width: '100%', padding: '10px 0', background: '#fff', border: `2px solid ${B}`, color: B, fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+                Ver diferencias
+              </button>
             </div>
 
             {/* panel body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-              {tab === 'diferencias' ? (
-                <DiferenciasPanel inventario={detalle} />
-              ) : detalleLoading ? (
+              {detalleLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
               ) : detalleData ? (
                 <>
