@@ -115,6 +115,98 @@ export async function sincronizarProductos() {
   return { total, descartadas: filas.length - rows.length }
 }
 
+// ── Stock teórico ────────────────────────────────────────────
+// Devuelve el stock externo crudo: [{IDDeposito, IDProducto, Existencia}]
+export async function obtenerStockExterno() {
+  return await _callReporte('KONTAR_STOCK')
+}
+
+/**
+ * Carga el stock teórico de un inventario desde la API externa.
+ * Usa el deposito_id del inventario para filtrar (lookup id_externo del depósito local).
+ * Hace UPSERT en inventario_stock_teorico.
+ * Devuelve { total, sinDeposito, sinProducto } para reportar al usuario.
+ */
+export async function cargarStockTeoricoDesdeAPI(inventario_id) {
+  const cliente_id = await _getClienteId()
+
+  // Inventario y su depósito
+  const { data: inv, error: invErr } = await supabase
+    .from('inventarios')
+    .select('id, deposito_id')
+    .eq('id', inventario_id)
+    .maybeSingle()
+  if (invErr) throw new Error(invErr.message)
+  if (!inv) throw new Error('Inventario no encontrado')
+  if (!inv.deposito_id) throw new Error('Este inventario no tiene depósito asignado. No se puede comparar contra stock teórico sin saber qué depósito comparar.')
+
+  // id_externo del depósito local
+  const { data: dep } = await supabase
+    .from('depositos')
+    .select('id, id_externo')
+    .eq('id', inv.deposito_id)
+    .maybeSingle()
+  if (!dep?.id_externo) throw new Error('El depósito del inventario no está vinculado a ningún ID externo. Sincronizá depósitos desde la API primero.')
+
+  // Traer stock crudo de la API y filtrar por depósito
+  const stockCrudo = await obtenerStockExterno()
+  const idDep = String(dep.id_externo)
+  const filasDeposito = stockCrudo.filter(r => String(r.IDDeposito) === idDep)
+  if (filasDeposito.length === 0) {
+    return { total: 0, sinDeposito: 0, sinProducto: 0, mensaje: 'La API devolvió 0 filas para este depósito.' }
+  }
+
+  // Mapa id_externo → producto_id local
+  const PAGE = 1000
+  let prods = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id, id_externo')
+      .eq('cliente_id', cliente_id)
+      .not('id_externo', 'is', null)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    prods = prods.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  const prodMap = new Map(prods.map(p => [String(p.id_externo), p.id]))
+
+  let sinProducto = 0
+  const rows = filasDeposito
+    .map(r => {
+      const producto_id = prodMap.get(String(r.IDProducto))
+      if (!producto_id) { sinProducto++; return null }
+      return {
+        cliente_id,
+        inventario_id,
+        producto_id,
+        cantidad: Number(r.Existencia) || 0,
+        fuente: 'api',
+      }
+    })
+    .filter(Boolean)
+
+  // Limpiar lo previo y upsert
+  await supabase.from('inventario_stock_teorico').delete().eq('inventario_id', inventario_id)
+
+  const CHUNK = 500
+  let total = 0
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const lote = rows.slice(i, i + CHUNK)
+    const { error } = await supabase
+      .from('inventario_stock_teorico')
+      .upsert(lote, { onConflict: 'inventario_id,producto_id' })
+    if (error) throw new Error(`Lote ${i / CHUNK + 1}: ${error.message}`)
+    total += lote.length
+  }
+
+  return { total, sinProducto, deposito: dep.id_externo }
+}
+
 // ── Sincronización completa (orden importa) ──────────────────
 export async function sincronizarTodo(onProgress) {
   const r = { sucursales: 0, depositos: 0, productos: 0, sinSucursal: 0, descartadas: 0 }

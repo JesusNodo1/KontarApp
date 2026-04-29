@@ -114,6 +114,110 @@ export async function getConteosInventario(inventario_id) {
   return data || []
 }
 
+/**
+ * Devuelve las diferencias de un inventario:
+ * teórico (de inventario_stock_teorico) vs contado (suma de conteos.cantidad por producto).
+ * Resuelve los 3 casos: ambos, solo teórico (faltante total), solo contado (no esperado).
+ */
+export async function getDiferencias(inventario_id) {
+  const PAGE = 1000
+
+  // ── Teórico (paginado) ──
+  let teoricoRows = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('inventario_stock_teorico')
+      .select('producto_id, cantidad, costo_unitario, producto:producto_id(id, nombre, variante, sku, codigo_barras)')
+      .eq('inventario_id', inventario_id)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    teoricoRows = teoricoRows.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  // ── Conteos (paginado) ──
+  let conteoRows = []
+  from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('conteos')
+      .select('producto_id, cantidad, producto:producto_id(id, nombre, variante, sku, codigo_barras)')
+      .eq('inventario_id', inventario_id)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    conteoRows = conteoRows.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  // ── Mergear: clave producto_id ──
+  const map = new Map()
+  for (const t of teoricoRows) {
+    map.set(t.producto_id, {
+      producto_id:   t.producto_id,
+      nombre:        t.producto?.nombre || '—',
+      variante:      t.producto?.variante || '',
+      sku:           t.producto?.sku || '',
+      codigo_barras: t.producto?.codigo_barras || '',
+      teorico:       Number(t.cantidad) || 0,
+      contado:       0,
+      costo:         t.costo_unitario ? Number(t.costo_unitario) : null,
+    })
+  }
+  for (const c of conteoRows) {
+    const ex = map.get(c.producto_id)
+    if (ex) {
+      ex.contado += Number(c.cantidad) || 0
+    } else {
+      map.set(c.producto_id, {
+        producto_id:   c.producto_id,
+        nombre:        c.producto?.nombre || '—',
+        variante:      c.producto?.variante || '',
+        sku:           c.producto?.sku || '',
+        codigo_barras: c.producto?.codigo_barras || '',
+        teorico:       0,
+        contado:       Number(c.cantidad) || 0,
+        costo:         null,
+      })
+    }
+  }
+
+  const filas = Array.from(map.values()).map(r => {
+    const dif = r.contado - r.teorico
+    return {
+      ...r,
+      diferencia: dif,
+      pct: r.teorico > 0 ? (dif / r.teorico) * 100 : null,
+      valor: r.costo != null ? dif * r.costo : null,
+      estado: dif === 0 ? 'ok' : dif > 0 ? (r.teorico === 0 ? 'no-esperado' : 'sobrante') : 'faltante',
+    }
+  })
+
+  return {
+    filas,
+    resumen: {
+      total:        filas.length,
+      ok:           filas.filter(f => f.estado === 'ok').length,
+      faltantes:    filas.filter(f => f.estado === 'faltante').length,
+      sobrantes:    filas.filter(f => f.estado === 'sobrante').length,
+      noEsperados:  filas.filter(f => f.estado === 'no-esperado').length,
+      valorNeto:    filas.reduce((s, f) => s + (f.valor || 0), 0),
+    },
+  }
+}
+
+export async function getStockTeoricoStatus(inventario_id) {
+  const { count } = await supabase
+    .from('inventario_stock_teorico')
+    .select('id', { count: 'exact', head: true })
+    .eq('inventario_id', inventario_id)
+  return { cargado: (count || 0) > 0, total: count || 0 }
+}
+
 export async function getZonaDetalle(zona_id) {
   const { data } = await supabase
     .from('conteos')

@@ -7,6 +7,7 @@ import {
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
+import DiferenciasPanel from './DiferenciasPanel'
 
 const ESTADO_STYLE = {
   abierto: { bg: GL,        color: '#065F46', border: '#6EE7B7', label: 'Abierto' },
@@ -40,6 +41,9 @@ export default function InventariosScreen() {
   const [zonaConteos,    setZonaConteos]    = useState({})     // { zona_id: [...conteos] }
   const [zonaLoading,    setZonaLoading]    = useState(null)   // zona_id cargando
 
+  // ── tabs del detalle ──────────────────────────────────────────
+  const [tab,            setTab]            = useState('resumen')
+
   const loadData = useCallback(async () => {
     setLoading(true)
     const [data, sucs, deps, adms] = await Promise.all([getInventarios(), getSucursales(), getDepositos(), getAdmins()])
@@ -63,6 +67,7 @@ export default function InventariosScreen() {
     setDetalleLoading(true)
     setZonaAbierta(null)
     setZonaConteos({})
+    setTab('resumen')
     try {
       const d = await getInventarioDetalle(inv.id)
       setDetalleData(d)
@@ -227,9 +232,27 @@ export default function InventariosScreen() {
               </div>
             </div>
 
+            {/* tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', flexShrink: 0 }}>
+              {[
+                { k: 'resumen',     l: 'Resumen' },
+                { k: 'diferencias', l: 'Diferencias' },
+              ].map(t => {
+                const a = tab === t.k
+                return (
+                  <button key={t.k}
+                    onClick={() => setTab(t.k)}
+                    style={{ flex: 1, padding: '12px 0', background: a ? '#fff' : '#F9FAFB', border: 'none', borderBottom: `3px solid ${a ? B : 'transparent'}`, color: a ? B : '#6B7280', fontWeight: a ? 700 : 500, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
+                  >{t.l}</button>
+                )
+              })}
+            </div>
+
             {/* panel body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-              {detalleLoading ? (
+              {tab === 'diferencias' ? (
+                <DiferenciasPanel inventario={detalle} />
+              ) : detalleLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
               ) : detalleData ? (
                 <>
