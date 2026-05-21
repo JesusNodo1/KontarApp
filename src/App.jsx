@@ -13,6 +13,7 @@ import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
 import ConteosScreen      from './pages/admin/ConteosScreen'
 import DiferenciasScreen  from './pages/admin/DiferenciasScreen'
+import ReportesScreen     from './pages/admin/ReportesScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
 import SoporteSelectScreen from './pages/soporte/SoporteSelectScreen'
 import SoporteLayout      from './pages/soporte/SoporteLayout'
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="inventarios" element={<InventariosScreen />} />
             <Route path="inventarios/:id/diferencias" element={<DiferenciasScreen />} />
             <Route path="conteos"     element={<ConteosScreen />} />
+            <Route path="reportes"    element={<ReportesScreen />} />
             <Route path="sucursales"  element={<SucursalesScreen />} />
           </Route>
 

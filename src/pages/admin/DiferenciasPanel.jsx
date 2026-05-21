@@ -15,7 +15,7 @@ const ESTADO_LABEL = {
   'no-esperado':  { label: 'No esperado', bg: '#EFF6FF', color: '#1D4ED8' },
 }
 
-export default function DiferenciasPanel({ inventario }) {
+export default function DiferenciasPanel({ inventario, onData, extraToolbar = null }) {
   const { user } = useAuth()
   const apiHabilitada = user?.fuente_sync === 'api'
 
@@ -38,15 +38,17 @@ export default function DiferenciasPanel({ inventario }) {
       if (st.cargado) {
         const d = await getDiferencias(inventario.id)
         setData(d)
+        onData?.(d)
       } else {
         setData(null)
+        onData?.(null)
       }
     } catch (e) {
       setErrorMsg(e.message)
     } finally {
       setLoading(false)
     }
-  }, [inventario.id])
+  }, [inventario.id, onData])
 
   useEffect(() => { load() }, [load])
 
@@ -156,6 +158,7 @@ export default function DiferenciasPanel({ inventario }) {
             {cargando ? <><Spinner /> Recargando...</> : '↻ Recargar API'}
           </button>
         )}
+        {extraToolbar}
       </div>
 
       {/* filtros */}
