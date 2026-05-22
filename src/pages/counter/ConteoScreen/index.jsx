@@ -220,12 +220,13 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     return { prev, next }
   }, [reg, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
 
-  // Deshacer el último scan de la sesión: restaura la cantidad al valor previo.
+  // Deshacer el último scan: restaura la cantidad al valor previo y deja un
+  // scan inverso en el historial (auditoría completa, sin borrar el original).
   const undoLast = useCallback(async () => {
     if (scans.length === 0 || undoing) return
     const last = scans[0]
     setUndoing(true)
-    // Optimistic state update
+    // Optimistic state update sobre conteos (cantidad agregada)
     setConteos(prev => {
       if (last.prev === 0) return prev.filter(x => x.producto_id !== last.producto_id)
       const i = prev.findIndex(x => x.producto_id === last.producto_id)
@@ -234,6 +235,23 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       cp[i] = { ...cp[i], cantidad: last.prev, ts: new Date() }
       return cp
     })
+
+    // Optimistic: agregar scan inverso al historial local con id temporal
+    const tmpId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const inverseLocal = {
+      id:            tmpId,
+      producto_id:   last.producto_id,
+      nombre:        last.nombre,
+      variante:      last.variante,
+      sku:           last.sku,
+      codigo_barras: last.codigo_barras,
+      delta:         last.prev - last.next,
+      prev:          last.next,
+      next:          last.prev,
+      ts:            new Date(),
+    }
+    setScans(s => [inverseLocal, ...s])
+
     try {
       if (last.prev === 0) {
         await deleteConteo({ zona_id: zona.id, producto_id: last.producto_id })
@@ -246,16 +264,23 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
           cantidad:      last.prev,
         })
       }
-      // Borrar también el evento de scan (si tiene id real, no temporal)
-      if (last.id && !String(last.id).startsWith('tmp-')) {
-        try { await deleteScan(last.id) } catch (e) { console.error('[ConteoScreen] deleteScan error:', e) }
-      }
+      // Registrar scan inverso en DB (preserva el original como evidencia)
+      const cliente_id = inv.cliente_id ?? user.cliente_id
+      const saved = await addScan({
+        zona_id:       zona.id,
+        inventario_id: inv.id,
+        cliente_id,
+        producto_id:   last.producto_id,
+        usuario_id:    user.id,
+        prev:          last.next,
+        next:          last.prev,
+      })
+      setScans(s => s.map(x => x.id === tmpId ? { ...x, id: saved.id } : x))
     } catch (e) {
       console.error('[ConteoScreen] undoLast error:', e)
     }
-    setScans(s => s.slice(1))
     setUndoing(false)
-  }, [scans, undoing, zona.id, inv.id, user.id])
+  }, [scans, undoing, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
 
   /* ── procesamiento de código desde cámara (ref para evitar stale closure) ── */
   camProcRef.current = async cod => {

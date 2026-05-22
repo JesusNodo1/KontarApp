@@ -116,7 +116,7 @@ export default function ReporteAuditoria({ inventario }) {
         {[
           { k: 'todos', l: `Todos (${rows.length})` },
           { k: 'suma',  l: `Sumas (${rows.filter(x => (x.delta ?? (x.next - x.prev)) > 0).length})` },
-          { k: 'resta', l: `Restas / deshacer (${rows.filter(x => (x.delta ?? (x.next - x.prev)) < 0).length})` },
+          { k: 'resta', l: `Restas (${rows.filter(x => (x.delta ?? (x.next - x.prev)) < 0).length})` },
         ].map(f => {
           const a = tipoDelta === f.k
           return (
