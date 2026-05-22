@@ -71,6 +71,33 @@ export async function getInventarioConteos(inventario_id) {
   return count || 0
 }
 
+/**
+ * Estadísticas agregadas de un inventario: cuántos conteos, productos únicos y unidades totales.
+ * Pagina las filas de conteos del inventario para no truncar al límite de PostgREST.
+ */
+export async function getInventarioStats(inventario_id) {
+  const PAGE = 1000
+  let all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('conteos')
+      .select('producto_id, cantidad')
+      .eq('inventario_id', inventario_id)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    all = all.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return {
+    conteos:   all.length,
+    productos: new Set(all.map(c => c.producto_id)).size,
+    unidades:  all.reduce((s, c) => s + (Number(c.cantidad) || 0), 0),
+  }
+}
+
 export async function getInventarioDetalle(inventario_id) {
   const [zonasRes, conteosRes, actRes] = await Promise.all([
     supabase
@@ -80,7 +107,7 @@ export async function getInventarioDetalle(inventario_id) {
       .order('created_at'),
     supabase
       .from('conteos')
-      .select('zona_id')
+      .select('zona_id, producto_id, cantidad')
       .eq('inventario_id', inventario_id),
     supabase
       .from('conteos')
@@ -93,14 +120,27 @@ export async function getInventarioDetalle(inventario_id) {
   const zonas = zonasRes.data || []
   const conteoRows = conteosRes.data || []
 
-  // count conteos per zona
-  const cntMap = {}
-  for (const c of conteoRows) cntMap[c.zona_id] = (cntMap[c.zona_id] || 0) + 1
+  // Agregar por zona: conteos, productos únicos, unidades
+  const zonaMap = {}
+  for (const c of conteoRows) {
+    let m = zonaMap[c.zona_id]
+    if (!m) { m = { conteos: 0, productos: new Set(), unidades: 0 }; zonaMap[c.zona_id] = m }
+    m.conteos++
+    m.productos.add(c.producto_id)
+    m.unidades += Number(c.cantidad) || 0
+  }
 
   return {
-    zonas: zonas.map(z => ({ ...z, conteos: cntMap[z.id] || 0 })),
+    zonas: zonas.map(z => ({
+      ...z,
+      conteos:   zonaMap[z.id]?.conteos || 0,
+      productos: zonaMap[z.id]?.productos.size || 0,
+      unidades:  zonaMap[z.id]?.unidades || 0,
+    })),
     actividad: actRes.data || [],
-    totalConteos: conteoRows.length,
+    totalConteos:   conteoRows.length,
+    totalProductos: new Set(conteoRows.map(c => c.producto_id)).size,
+    totalUnidades:  conteoRows.reduce((s, c) => s + (Number(c.cantidad) || 0), 0),
   }
 }
 

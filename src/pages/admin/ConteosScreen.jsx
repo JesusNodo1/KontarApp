@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { B, BL, G, GL } from '../../constants/theme'
 import {
-  getInventarios, getInventarioDetalle, getZonaDetalle, getConteosInventario,
+  getInventarios, getInventarioDetalle, getZonaDetalle, getConteosInventario, getInventarioStats,
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
@@ -54,7 +54,8 @@ function ConteosTable({ rows, showZona }) {
   const headers = showZona
     ? ['Cód. Barras', 'Producto', 'Zona', 'Usuario', 'Cant.']
     : ['Cód. Barras', 'Producto', 'Usuario', 'Cant.']
-  const total = rows.reduce((s, c) => s + (c.cantidad || 0), 0)
+  const total     = rows.reduce((s, c) => s + (c.cantidad || 0), 0)
+  const productos = new Set(rows.map(c => c.producto?.id ?? c.producto_id).filter(Boolean)).size
   return (
     <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
       <div style={{ display: 'grid', gridTemplateColumns: cols, padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
@@ -81,10 +82,31 @@ function ConteosTable({ rows, showZona }) {
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: G, textAlign: 'right' }}>{c.cantidad}</div>
         </div>
       ))}
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #E5E7EB', background: GL }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#065F46' }}>Total unidades</span>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G }}>{total}</span>
+      <div style={{ display: 'flex', gap: 16, padding: '10px 14px', borderTop: '1px solid #E5E7EB', background: GL, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Filas</span>
+            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{rows.length}</span>
+          </div>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos únicos</span>
+            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{productos}</span>
+          </div>
+        </div>
+        <div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Total unidades</span>
+          <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{total}</span>
+        </div>
       </div>
+    </div>
+  )
+}
+
+function StatBox({ label, value, color }) {
+  return (
+    <div style={{ flex: 1, background: '#fff', border: '1px solid #E5E7EB', padding: '8px 12px', minWidth: 110 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF' }}>{label}</div>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 20, fontWeight: 700, color, lineHeight: 1.2, marginTop: 2 }}>{value}</div>
     </div>
   )
 }
@@ -96,6 +118,7 @@ export default function ConteosScreen() {
 
   const [loading, setLoading] = useState(true)
   const [invs, setInvs]       = useState([])
+  const [stats, setStats]     = useState({})   // { [invId]: { conteos, productos, unidades } }
   const [qInv, setQInv]       = useState('')
 
   // inventario seleccionado
@@ -120,8 +143,14 @@ export default function ConteosScreen() {
   useEffect(() => {
     (async () => {
       setLoading(true)
-      setInvs(await getInventarios())
+      const list = await getInventarios()
+      setInvs(list)
       setLoading(false)
+      // Stats por inventario en paralelo (no bloquea el render de la lista)
+      const entries = await Promise.all(
+        list.map(async inv => [inv.id, await getInventarioStats(inv.id).catch(() => ({ conteos: 0, productos: 0, unidades: 0 }))])
+      )
+      setStats(Object.fromEntries(entries))
     })()
   }, [])
 
@@ -217,31 +246,49 @@ export default function ConteosScreen() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {invsFiltradas.map(inv => (
-                <div
-                  key={inv.id}
-                  onClick={() => openInv(inv)}
-                  style={{
-                    background: '#fff',
-                    border: '1px solid #E5E7EB',
-                    borderLeft: `4px solid ${inv.estado === 'abierto' ? G : '#D1D5DB'}`,
-                    padding: '14px 16px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 180 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{inv.nombre}</div>
-                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                      {inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}
-                      {inv.fecha_inicio && ` · ${fmtFecha(inv.fecha_inicio)}`}
+              {invsFiltradas.map(inv => {
+                const s = stats[inv.id]
+                return (
+                  <div
+                    key={inv.id}
+                    onClick={() => openInv(inv)}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #E5E7EB',
+                      borderLeft: `4px solid ${inv.estado === 'abierto' ? G : '#D1D5DB'}`,
+                      padding: '14px 16px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{inv.nombre}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
+                        {inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}
+                        {inv.fecha_inicio && ` · ${fmtFecha(inv.fecha_inicio)}`}
+                      </div>
                     </div>
+                    {/* métricas */}
+                    <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: B, lineHeight: 1 }}>
+                          {s ? s.productos : '—'}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: G, lineHeight: 1 }}>
+                          {s ? s.unidades : '—'}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Unidades</div>
+                      </div>
+                    </div>
+                    <span style={{ background: inv.estado === 'abierto' ? GL : '#F3F4F6', color: inv.estado === 'abierto' ? '#065F46' : '#6B7280', padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      {inv.estado}
+                    </span>
+                    <span style={{ fontSize: 12, color: B, fontWeight: 600 }}>Abrir →</span>
                   </div>
-                  <span style={{ background: inv.estado === 'abierto' ? GL : '#F3F4F6', color: inv.estado === 'abierto' ? '#065F46' : '#6B7280', padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    {inv.estado}
-                  </span>
-                  <span style={{ fontSize: 12, color: B, fontWeight: 600 }}>Abrir →</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </>
@@ -250,6 +297,15 @@ export default function ConteosScreen() {
       {/* ── Nivel 2: Zonas del inventario ── */}
       {view === 'zonas' && selInv && (
         <>
+          {/* Totales del inventario */}
+          {detalle && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <StatBox label="Conteos"          value={detalle.totalConteos}   color={'#111827'} />
+              <StatBox label="Productos únicos" value={detalle.totalProductos} color={B} />
+              <StatBox label="Unidades totales" value={detalle.totalUnidades}  color={G} />
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
             <button
               onClick={openTodo}
@@ -283,9 +339,15 @@ export default function ConteosScreen() {
                     <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{z.nombre}</div>
                     {z.descripcion && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{z.descripcion}</div>}
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: z.finalizada ? G : B }}>{z.conteos}</div>
-                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>conteos</div>
+                  <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: B }}>{z.productos}</div>
+                      <div style={{ fontSize: 9, color: '#9CA3AF', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G }}>{z.unidades}</div>
+                      <div style={{ fontSize: 9, color: '#9CA3AF', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Unidades</div>
+                    </div>
                   </div>
                   {z.finalizada && (
                     <span style={{ background: GL, color: '#065F46', border: '1px solid #6EE7B7', padding: '2px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>OK</span>

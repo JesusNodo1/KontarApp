@@ -38,7 +38,8 @@ export default function ReporteConteo({ inventario }) {
     )
   }, [rows, q])
 
-  const totalUnidades = filtradas.reduce((s, r) => s + (Number(r.cantidad) || 0), 0)
+  const totalUnidades  = filtradas.reduce((s, r) => s + (Number(r.cantidad) || 0), 0)
+  const totalProductos = new Set(filtradas.map(r => r.producto?.id).filter(Boolean)).size
 
   const handleExport = () => {
     if (filtradas.length === 0) return
@@ -103,12 +104,16 @@ export default function ReporteConteo({ inventario }) {
       </div>
 
       {/* stats */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1, background: BL, border: `1px solid ${B}33`, padding: '10px 14px' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 120, background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>Filas</div>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 22, fontWeight: 700, color: B }}>{filtradas.length}</div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 22, fontWeight: 700, color: '#111827' }}>{filtradas.length}</div>
         </div>
-        <div style={{ flex: 1, background: GL, border: '1px solid #6EE7B7', padding: '10px 14px' }}>
+        <div style={{ flex: 1, minWidth: 120, background: BL, border: `1px solid ${B}33`, padding: '10px 14px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>Productos</div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 22, fontWeight: 700, color: B }}>{totalProductos}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 120, background: GL, border: '1px solid #6EE7B7', padding: '10px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>Unidades</div>
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 22, fontWeight: 700, color: G }}>{totalUnidades}</div>
         </div>
