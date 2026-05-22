@@ -83,18 +83,12 @@ function ConteosTable({ rows, showZona }) {
         </div>
       ))}
       <div style={{ display: 'flex', gap: 16, padding: '10px 14px', borderTop: '1px solid #E5E7EB', background: GL, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Filas</span>
-            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{rows.length}</span>
-          </div>
-          <div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos únicos</span>
-            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{productos}</span>
-          </div>
+        <div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos</span>
+          <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{productos}</span>
         </div>
         <div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Total unidades</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Unidades</span>
           <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, marginLeft: 8 }}>{total}</span>
         </div>
       </div>
@@ -300,9 +294,8 @@ export default function ConteosScreen() {
           {/* Totales del inventario */}
           {detalle && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-              <StatBox label="Conteos"          value={detalle.totalConteos}   color={'#111827'} />
-              <StatBox label="Productos únicos" value={detalle.totalProductos} color={B} />
-              <StatBox label="Unidades totales" value={detalle.totalUnidades}  color={G} />
+              <StatBox label="Productos" value={detalle.totalProductos} color={B} />
+              <StatBox label="Unidades"  value={detalle.totalUnidades}  color={G} />
             </div>
           )}
 
