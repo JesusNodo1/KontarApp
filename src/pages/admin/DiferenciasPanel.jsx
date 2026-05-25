@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { B, BL, G, GL } from '../../constants/theme'
-import { getDiferencias, getStockTeoricoStatus } from '../../services/adminService'
+import { getDiferencias, getStockTeoricoStatus, getSucursales, getDepositos } from '../../services/adminService'
 import { cargarStockTeoricoDesdeAPI } from '../../services/apiExternaService'
 import { useAuth } from '../../context/AuthContext'
 import Spinner from '../../components/Spinner'
@@ -30,6 +30,47 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   const [pagina,    setPagina]    = useState(1)
   const POR_PAGINA = 50
 
+  // Selector de sucursal/depósito para comparar contra otro origen
+  const [sucursales,  setSucursales]  = useState([])
+  const [depositos,   setDepositos]   = useState([])
+  const LS_KEY = `dif:lastDep:${inventario.id}`
+  const [sucursalSel, setSucursalSel] = useState(null)
+  const [depositoSel, setDepositoSel] = useState(null)
+  const [origenLabel, setOrigenLabel] = useState('')  // se setea tras cargar
+
+  // Carga sucursales+depositos una vez y resuelve el default
+  useEffect(() => {
+    if (!apiHabilitada) return
+    let cancel = false
+    ;(async () => {
+      try {
+        const [sucs, deps] = await Promise.all([getSucursales(true), getDepositos(true)])
+        if (cancel) return
+        setSucursales(sucs)
+        setDepositos(deps)
+        // Default: última selección guardada, si no, el depósito propio del inventario
+        const lastId = Number(localStorage.getItem(LS_KEY)) || null
+        const defDep = deps.find(d => d.id === lastId)
+                    || deps.find(d => d.id === inventario.deposito_id)
+                    || null
+        if (defDep) {
+          setDepositoSel(defDep.id)
+          setSucursalSel(defDep.sucursal_id ?? null)
+        }
+      } catch (e) {
+        // no fatal — el usuario verá los selectores vacíos
+        console.warn('No se pudieron cargar sucursales/depósitos', e)
+      }
+    })()
+    return () => { cancel = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiHabilitada, inventario.id, inventario.deposito_id])
+
+  const depositosFiltrados = useMemo(() => {
+    if (!sucursalSel) return depositos
+    return depositos.filter(d => d.sucursal_id === sucursalSel)
+  }, [depositos, sucursalSel])
+
   const load = useCallback(async () => {
     setLoading(true); setErrorMsg('')
     try {
@@ -53,11 +94,19 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   useEffect(() => { load() }, [load])
 
   const handleCargarApi = async () => {
-    if (!confirm('Cargar el stock teórico desde la API externa? Reemplaza el snapshot anterior si ya existía.')) return
+    const dep = depositos.find(d => d.id === depositoSel)
+    const esOtro = depositoSel && inventario.deposito_id && depositoSel !== inventario.deposito_id
+    const msg = esOtro
+      ? `Cargar stock teórico desde "${dep?.nombre || 'otro depósito'}" (distinto al asignado al inventario)? Reemplaza el snapshot anterior si ya existía.`
+      : 'Cargar el stock teórico desde la API externa? Reemplaza el snapshot anterior si ya existía.'
+    if (!confirm(msg)) return
     setCargando(true); setErrorMsg(''); setOkMsg('')
     try {
-      const r = await cargarStockTeoricoDesdeAPI(inventario.id)
-      const partes = [`✓ ${r.total} productos cargados (depósito ext. ${r.deposito})`]
+      const r = await cargarStockTeoricoDesdeAPI(inventario.id, depositoSel ? { depositoId: depositoSel } : {})
+      if (r.depositoId) localStorage.setItem(LS_KEY, String(r.depositoId))
+      const origen = r.depositoNombre || `depósito ext. ${r.deposito}`
+      setOrigenLabel(origen)
+      const partes = [`✓ ${r.total} productos cargados desde ${origen}`]
       if (r.sinProducto > 0) partes.push(`${r.sinProducto} sin match en catálogo`)
       setOkMsg(partes.join(' · '))
       await load()
@@ -94,6 +143,47 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     return <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
   }
 
+  // Selector reusable de sucursal → depósito (origen de comparación)
+  const renderSelectorOrigen = (compact = false) => (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <select
+        value={sucursalSel ?? ''}
+        onChange={e => {
+          const v = e.target.value ? Number(e.target.value) : null
+          setSucursalSel(v)
+          // Si el depósito actual no pertenece a la sucursal elegida, reset
+          if (v && depositoSel) {
+            const dep = depositos.find(d => d.id === depositoSel)
+            if (dep && dep.sucursal_id !== v) setDepositoSel(null)
+          }
+        }}
+        style={{ height: compact ? 38 : 36, padding: '0 8px', border: '2px solid #E5E7EB', background: '#fff', fontSize: 12, minWidth: 130 }}
+        title="Sucursal de origen para la comparación"
+      >
+        <option value="">— Sucursal —</option>
+        {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+      </select>
+      <select
+        value={depositoSel ?? ''}
+        onChange={e => {
+          const v = e.target.value ? Number(e.target.value) : null
+          setDepositoSel(v)
+          const dep = depositos.find(d => d.id === v)
+          if (dep && dep.sucursal_id) setSucursalSel(dep.sucursal_id)
+        }}
+        style={{ height: compact ? 38 : 36, padding: '0 8px', border: '2px solid #E5E7EB', background: '#fff', fontSize: 12, minWidth: 150 }}
+        title="Depósito a comparar contra el conteo"
+      >
+        <option value="">— Depósito —</option>
+        {depositosFiltrados.map(d => (
+          <option key={d.id} value={d.id} disabled={!d.id_externo}>
+            {d.nombre}{!d.id_externo ? ' (sin ID externo)' : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
   // ── Sin teórico cargado: pantalla de carga inicial ──
   if (!status.cargado) {
     return (
@@ -102,13 +192,24 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
           Aún no se cargó el stock teórico de este inventario.
         </div>
         {apiHabilitada ? (
-          <button
-            onClick={handleCargarApi}
-            disabled={cargando}
-            style={{ padding: '10px 18px', background: cargando ? '#F3F4F6' : G, border: 'none', color: cargando ? '#9CA3AF' : '#fff', fontWeight: 700, fontSize: 13, cursor: cargando ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-          >
-            {cargando ? <><Spinner /> Cargando...</> : 'Cargar desde API'}
-          </button>
+          <>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+              {renderSelectorOrigen(true)}
+            </div>
+            <button
+              onClick={handleCargarApi}
+              disabled={cargando || !depositoSel}
+              style={{ padding: '10px 18px', background: (cargando || !depositoSel) ? '#F3F4F6' : G, border: 'none', color: (cargando || !depositoSel) ? '#9CA3AF' : '#fff', fontWeight: 700, fontSize: 13, cursor: (cargando || !depositoSel) ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              title={!depositoSel ? 'Elegí un depósito para comparar' : ''}
+            >
+              {cargando ? <><Spinner /> Cargando...</> : 'Cargar desde API'}
+            </button>
+            {!depositoSel && (
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>
+                Elegí el depósito a comparar contra el conteo.
+              </div>
+            )}
+          </>
         ) : (
           <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
             Este cliente no tiene API habilitada. Subir CSV/Excel — feature pendiente.
@@ -120,12 +221,19 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   }
 
   const r = data?.resumen || {}
+  const depSel       = depositos.find(d => d.id === depositoSel)
+  const esOrigenOtro = depositoSel && inventario.deposito_id && depositoSel !== inventario.deposito_id
 
   return (
     <div>
       {/* mensajes */}
       {errorMsg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#DC2626' }}>✕ {errorMsg}</div>}
       {okMsg && <div style={{ background: GL, border: '1px solid #6EE7B7', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#065F46' }}>{okMsg}</div>}
+      {esOrigenOtro && (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
+          ⚠ Comparando contra <b>{depSel?.nombre}</b> (distinto del depósito asignado al inventario "{inventario.deposito || '—'}"). Clic en <b>Recargar API</b> para aplicar.
+        </div>
+      )}
 
       {/* resumen */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
@@ -149,11 +257,12 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
           type="text" placeholder="Buscar por nombre, código, SKU..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
           style={{ flex: 1, minWidth: 220, height: 38, border: '2px solid #E5E7EB', padding: '0 12px', fontSize: 13, background: '#fff' }}
         />
+        {apiHabilitada && renderSelectorOrigen(true)}
         {apiHabilitada && (
           <button
-            onClick={handleCargarApi} disabled={cargando}
-            style={{ height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: G, fontWeight: 700, fontSize: 12, cursor: cargando ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
-            title="Volver a cargar el stock desde la API"
+            onClick={handleCargarApi} disabled={cargando || !depositoSel}
+            style={{ height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: (cargando || !depositoSel) ? '#9CA3AF' : G, fontWeight: 700, fontSize: 12, cursor: (cargando || !depositoSel) ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
+            title={!depositoSel ? 'Elegí un depósito' : 'Volver a cargar el stock desde la API (usa la sucursal/depósito elegidos)'}
           >
             {cargando ? <><Spinner /> Recargando...</> : '↻ Recargar API'}
           </button>

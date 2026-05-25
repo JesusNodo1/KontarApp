@@ -123,30 +123,35 @@ export async function obtenerStockExterno() {
 
 /**
  * Carga el stock teórico de un inventario desde la API externa.
- * Usa el deposito_id del inventario para filtrar (lookup id_externo del depósito local).
- * Hace UPSERT en inventario_stock_teorico.
- * Devuelve { total, sinDeposito, sinProducto } para reportar al usuario.
+ * Por defecto usa el deposito_id del inventario; opts.depositoId permite comparar
+ * contra otro depósito (mismo cliente). Hace UPSERT en inventario_stock_teorico.
  */
-export async function cargarStockTeoricoDesdeAPI(inventario_id) {
+export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
   const cliente_id = await _getClienteId()
+  const { depositoId: depositoIdOverride } = opts
 
-  // Inventario y su depósito
-  const { data: inv, error: invErr } = await supabase
-    .from('inventarios')
-    .select('id, deposito_id')
-    .eq('id', inventario_id)
-    .maybeSingle()
-  if (invErr) throw new Error(invErr.message)
-  if (!inv) throw new Error('Inventario no encontrado')
-  if (!inv.deposito_id) throw new Error('Este inventario no tiene depósito asignado. No se puede comparar contra stock teórico sin saber qué depósito comparar.')
+  let deposito_id = depositoIdOverride
+  if (!deposito_id) {
+    const { data: inv, error: invErr } = await supabase
+      .from('inventarios')
+      .select('id, deposito_id')
+      .eq('id', inventario_id)
+      .maybeSingle()
+    if (invErr) throw new Error(invErr.message)
+    if (!inv) throw new Error('Inventario no encontrado')
+    if (!inv.deposito_id) throw new Error('Este inventario no tiene depósito asignado. Elegí un depósito para comparar.')
+    deposito_id = inv.deposito_id
+  }
 
-  // id_externo del depósito local
+  // id_externo del depósito (acotado al cliente para que el override no cruce tenants)
   const { data: dep } = await supabase
     .from('depositos')
-    .select('id, id_externo')
-    .eq('id', inv.deposito_id)
+    .select('id, id_externo, nombre')
+    .eq('id', deposito_id)
+    .eq('cliente_id', cliente_id)
     .maybeSingle()
-  if (!dep?.id_externo) throw new Error('El depósito del inventario no está vinculado a ningún ID externo. Sincronizá depósitos desde la API primero.')
+  if (!dep) throw new Error('Depósito no encontrado o no pertenece al cliente.')
+  if (!dep.id_externo) throw new Error('El depósito elegido no está vinculado a ningún ID externo. Sincronizá depósitos desde la API primero.')
 
   // Traer stock crudo de la API y filtrar por depósito
   const stockCrudo = await obtenerStockExterno()
@@ -204,7 +209,7 @@ export async function cargarStockTeoricoDesdeAPI(inventario_id) {
     total += lote.length
   }
 
-  return { total, sinProducto, deposito: dep.id_externo }
+  return { total, sinProducto, deposito: dep.id_externo, depositoNombre: dep.nombre, depositoId: dep.id }
 }
 
 // ── Sincronización completa (orden importa) ──────────────────

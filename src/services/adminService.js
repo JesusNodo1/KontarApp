@@ -430,7 +430,7 @@ export async function toggleSucursal(id, activo) {
 
 // ── Depósitos ────────────────────────────────────────────────
 export async function getDepositos(soloActivos = true, sucursalId = null) {
-  let q = supabase.from('depositos').select('id, nombre, activo, sucursal_id').order('nombre')
+  let q = supabase.from('depositos').select('id, nombre, activo, sucursal_id, id_externo').order('nombre')
   if (soloActivos)   q = q.eq('activo', true)
   if (sucursalId)    q = q.eq('sucursal_id', sucursalId)
   const { data } = await q
