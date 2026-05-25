@@ -99,16 +99,34 @@ export async function getInventarioStats(inventario_id) {
 }
 
 export async function getInventarioDetalle(inventario_id) {
-  const [zonasRes, conteosRes, actRes] = await Promise.all([
+  // Pagina las filas de conteos del inventario para que no se trunque al
+  // límite de 1000 de PostgREST (si no, zonas creadas tarde quedan en 0/0).
+  const PAGE = 1000
+  async function fetchAllConteos() {
+    const all = []
+    let from = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from('conteos')
+        .select('zona_id, producto_id, cantidad')
+        .eq('inventario_id', inventario_id)
+        .range(from, from + PAGE - 1)
+      if (error) throw new Error(error.message)
+      if (!data || data.length === 0) break
+      all.push(...data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    return all
+  }
+
+  const [zonasRes, conteoRows, actRes] = await Promise.all([
     supabase
       .from('zonas')
       .select('id, nombre, descripcion, finalizada, created_at')
       .eq('inventario_id', inventario_id)
       .order('created_at'),
-    supabase
-      .from('conteos')
-      .select('zona_id, producto_id, cantidad')
-      .eq('inventario_id', inventario_id),
+    fetchAllConteos(),
     supabase
       .from('conteos')
       .select('cantidad, updated_at, producto:producto_id(nombre, variante, sku, codigo_barras), zona:zona_id(nombre), usuario:perfiles!conteos_usuario_perfil_fkey(nombre)')
@@ -118,7 +136,6 @@ export async function getInventarioDetalle(inventario_id) {
   ])
 
   const zonas = zonasRes.data || []
-  const conteoRows = conteosRes.data || []
 
   // Agregar por zona: conteos, productos únicos, unidades
   const zonaMap = {}
@@ -145,13 +162,23 @@ export async function getInventarioDetalle(inventario_id) {
 }
 
 export async function getConteosInventario(inventario_id) {
-  const { data, error } = await supabase
-    .from('conteos')
-    .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre), usuario:perfiles!conteos_usuario_perfil_fkey(nombre)')
-    .eq('inventario_id', inventario_id)
-    .order('updated_at', { ascending: false })
-  if (error) { console.error('getConteosInventario', error); throw new Error(error.message) }
-  return data || []
+  const PAGE = 1000
+  let all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('conteos')
+      .select('cantidad, updated_at, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre), usuario:perfiles!conteos_usuario_perfil_fkey(nombre)')
+      .eq('inventario_id', inventario_id)
+      .order('updated_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error) { console.error('getConteosInventario', error); throw new Error(error.message) }
+    if (!data || data.length === 0) break
+    all = all.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
 }
 
 /**
