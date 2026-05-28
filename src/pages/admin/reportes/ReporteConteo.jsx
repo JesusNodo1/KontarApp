@@ -218,13 +218,13 @@ export default function ReporteConteo({ inventario }) {
           {rows.length === 0 ? 'No hay conteos para este inventario.' : 'Sin resultados.'}
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 110px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 110px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
             {['Cód. Barras', 'Producto', 'Zona', 'Usuario', 'Cant.'].map((h, i) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 4 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
-          <div style={{ maxHeight: 'calc(100vh - 460px)', overflowY: 'auto' }}>
+          <div>
             {filtradas.map((c, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 110px 64px', padding: '10px 14px', borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                 <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -196,13 +196,13 @@ export default function ReporteDispersion({ inventario }) {
           {rows.length === 0 ? 'No hay conteos para este inventario.' : 'Sin resultados.'}
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
             {['Código', 'Producto', 'N° Zonas', 'Total', 'Zona principal', ''].map((h, i) => (
               <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 || i === 3 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
-          <div style={{ maxHeight: 'calc(100vh - 480px)', overflowY: 'auto' }}>
+          <div>
             {filtradas.map((p, i) => {
               const pid = p.producto?.id ?? i
               const abierto = expandido.has(pid)

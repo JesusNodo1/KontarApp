@@ -217,13 +217,13 @@ export default function ReporteAuditoria({ inventario }) {
           {rows.length === 0 ? 'No hay scans registrados en este inventario.' : 'Sin resultados.'}
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '130px 110px 1fr 130px 100px 56px 56px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '130px 110px 1fr 130px 100px 56px 56px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
             {['Fecha', 'Cód.', 'Producto', 'Zona', 'Usuario', 'Antes', 'Desp.', 'Delta'].map((h, i) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 5 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
-          <div style={{ maxHeight: 'calc(100vh - 460px)', overflowY: 'auto' }}>
+          <div>
             {filtradas.map((s, i) => {
               const delta = s.delta ?? (s.next - s.prev)
               return (

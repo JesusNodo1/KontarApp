@@ -170,8 +170,8 @@ export default function ReporteHistorico({ deposito }) {
           {rows.length === 0 ? 'No hay inventarios cerrados para este depósito todavía.' : 'Sin resultados con los filtros aplicados.'}
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 120px 80px 100px 100px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 360px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 120px 80px 100px 100px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
             {['Inventario', 'Período', 'Responsable', 'Zonas', 'Productos', 'Unidades'].map((h, i) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
             ))}

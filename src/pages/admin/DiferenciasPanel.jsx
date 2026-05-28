@@ -319,7 +319,8 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
 
       {/* tabla */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="scroll-pc" style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
           {['Código', 'Producto', 'Teórico', 'Contado', 'Diferencia', 'Estado'].map((h, i) => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 2 && i <= 4 ? 'right' : 'left' }}>{h}</div>
           ))}
@@ -345,6 +346,7 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
             </div>
           )
         })}
+        </div>
 
         {filtradas.length > POR_PAGINA && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#F9FAFB', borderTop: '1px solid #E5E7EB', gap: 8, flexWrap: 'wrap' }}>
