@@ -4,6 +4,7 @@ import { getDiferencias, getStockTeoricoStatus, getSucursales, getDepositos } fr
 import { cargarStockTeoricoDesdeAPI } from '../../services/apiExternaService'
 import { useAuth } from '../../context/AuthContext'
 import Spinner from '../../components/Spinner'
+import { useIsNarrow } from '../../hooks/useIsNarrow'
 
 const norm = s => (s || '').toString().toLowerCase().trim()
 
@@ -18,6 +19,7 @@ const ESTADO_LABEL = {
 export default function DiferenciasPanel({ inventario, onData, extraToolbar = null }) {
   const { user } = useAuth()
   const apiHabilitada = user?.fuente_sync === 'api'
+  const isNarrow = useIsNarrow()
 
   const [loading,   setLoading]   = useState(true)
   const [data,      setData]      = useState(null)
@@ -248,13 +250,14 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
       )}
 
       {/* resumen */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { lbl: 'Total',     val: r.total,       color: '#111827' },
-          { lbl: 'OK',        val: r.ok,          color: '#065F46' },
-          { lbl: 'Pendientes',val: r.pendientes,  color: '#6B7280' },
-          { lbl: 'Faltantes', val: r.faltantes,   color: '#DC2626' },
-          { lbl: 'Sobrantes', val: r.sobrantes,   color: '#92400E' },
+          { lbl: 'Total',         val: r.total,         color: '#111827' },
+          { lbl: 'Total Conteo',  val: r.totalContado,  color: G },
+          { lbl: 'OK',            val: r.ok,            color: '#065F46' },
+          { lbl: 'Pendientes',    val: r.pendientes,    color: '#6B7280' },
+          { lbl: 'Faltantes',     val: r.faltantes,     color: '#DC2626' },
+          { lbl: 'Sobrantes',     val: r.sobrantes,     color: '#92400E' },
         ].map(x => (
           <div key={x.lbl} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 12px', textAlign: 'center' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>{x.lbl}</div>
@@ -319,17 +322,46 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
 
       {/* tabla */}
       <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-        <div className="scroll-pc" style={{ maxHeight: 'calc(100vh - 360px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
-          {['Código', 'Producto', 'Teórico', 'Contado', 'Diferencia', 'Estado'].map((h, i) => (
-            <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 2 && i <= 4 ? 'right' : 'left' }}>{h}</div>
-          ))}
-        </div>
+        <div className="scroll-pc" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+        {!isNarrow && (
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
+            {['Código', 'Producto', 'Teórico', 'Contado', 'Diferencia', 'Estado'].map((h, i) => (
+              <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 2 && i <= 4 ? 'right' : 'left' }}>{h}</div>
+            ))}
+          </div>
+        )}
         {paginadas.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Sin resultados.</div>
         ) : paginadas.map((f, i) => {
           const e = ESTADO_LABEL[f.estado]
-          return (
+          const difColor = f.diferencia === 0 ? '#065F46' : f.diferencia > 0 ? '#92400E' : '#DC2626'
+          return isNarrow ? (
+            // ── Card mobile ──
+            <div key={f.producto_id} style={{ padding: '12px 14px', borderBottom: i < paginadas.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', marginBottom: 4 }}>{f.codigo_barras || '—'}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', lineHeight: 1.3 }}>{f.nombre}{f.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {f.variante}</span>}</div>
+                </div>
+                <span style={{ background: e.bg, color: e.color, padding: '3px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{e.label}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11 }}>
+                <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                  <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Teórico</div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: '#374151', fontSize: 14 }}>{f.teorico}</div>
+                </div>
+                <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                  <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Contado</div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: '#111827', fontSize: 14 }}>{f.contado}</div>
+                </div>
+                <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                  <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Diferencia</div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: difColor, fontSize: 14 }}>{f.diferencia > 0 ? '+' : ''}{f.diferencia}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // ── Tabla desktop ──
             <div key={f.producto_id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '9px 12px', borderBottom: i < paginadas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 5px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.codigo_barras || '—'}</div>
               <div style={{ paddingLeft: 8, minWidth: 0 }}>
@@ -337,7 +369,7 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
               </div>
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#6B7280', textAlign: 'right' }}>{f.teorico}</div>
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#111827', textAlign: 'right' }}>{f.contado}</div>
-              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, textAlign: 'right', color: f.diferencia === 0 ? '#065F46' : f.diferencia > 0 ? '#92400E' : '#DC2626' }}>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, textAlign: 'right', color: difColor }}>
                 {f.diferencia > 0 ? '+' : ''}{f.diferencia}
               </div>
               <div>

@@ -273,13 +273,15 @@ export async function getDiferencias(inventario_id) {
   return {
     filas,
     resumen: {
-      total:        filas.length,
-      ok:           filas.filter(f => f.estado === 'ok').length,
-      pendientes:   filas.filter(f => f.estado === 'pendiente').length,
-      faltantes:    filas.filter(f => f.estado === 'faltante').length,
-      sobrantes:    filas.filter(f => f.estado === 'sobrante').length,
-      noEsperados:  filas.filter(f => f.estado === 'no-esperado').length,
-      valorNeto:    filas.reduce((s, f) => s + (f.valor || 0), 0),
+      total:         filas.length,
+      ok:            filas.filter(f => f.estado === 'ok').length,
+      pendientes:    filas.filter(f => f.estado === 'pendiente').length,
+      faltantes:     filas.filter(f => f.estado === 'faltante').length,
+      sobrantes:     filas.filter(f => f.estado === 'sobrante').length,
+      noEsperados:   filas.filter(f => f.estado === 'no-esperado').length,
+      valorNeto:     filas.reduce((s, f) => s + (f.valor || 0), 0),
+      totalContado:  filas.reduce((s, f) => s + (Number(f.contado) || 0), 0),
+      totalTeorico:  filas.reduce((s, f) => s + (Number(f.teorico) || 0), 0),
     },
   }
 }

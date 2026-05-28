@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { B, BL, G, GL } from '../../../constants/theme'
 import { getReporteDispersion, exportToXlsx } from '../../../services/reportService'
 import Spinner from '../../../components/Spinner'
+import { useIsNarrow } from '../../../hooks/useIsNarrow'
 
 const normalize = s => (s || '').toString().toLowerCase().trim()
 
 export default function ReporteDispersion({ inventario }) {
+  const isNarrow = useIsNarrow()
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -196,12 +198,14 @@ export default function ReporteDispersion({ inventario }) {
           {rows.length === 0 ? 'No hay conteos para este inventario.' : 'Sin resultados.'}
         </div>
       ) : (
-        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
-            {['Código', 'Producto', 'N° Zonas', 'Total', 'Zona principal', ''].map((h, i) => (
-              <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 || i === 3 ? 'right' : 'left' }}>{h}</div>
-            ))}
-          </div>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 260px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          {!isNarrow && (
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
+              {['Código', 'Producto', 'N° Zonas', 'Total', 'Zona principal', ''].map((h, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 2 || i === 3 ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+          )}
           <div>
             {filtradas.map((p, i) => {
               const pid = p.producto?.id ?? i
@@ -209,46 +213,87 @@ export default function ReporteDispersion({ inventario }) {
               const concentracionColor = p.concentracion >= 90 ? G : p.concentracion >= 60 ? '#92400E' : '#DC2626'
               return (
                 <div key={pid} style={{ borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                  <div
-                    onClick={() => toggleExpand(pid)}
-                    style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '10px 14px', alignItems: 'center', background: abierto ? BL : (i % 2 === 0 ? '#fff' : '#FAFAFA'), cursor: 'pointer' }}
-                  >
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: '#fff', border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {p.producto?.codigo_barras || p.producto?.sku || '—'}
-                    </div>
-                    <div style={{ paddingLeft: 8, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.producto?.nombre || '—'}
-                        {p.producto?.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {p.producto.variante}</span>}
+                  {isNarrow ? (
+                    // ── Card mobile ──
+                    <div
+                      onClick={() => toggleExpand(pid)}
+                      style={{ padding: '12px 14px', background: abierto ? BL : (i % 2 === 0 ? '#fff' : '#FAFAFA'), cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: '#fff', border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', marginBottom: 4 }}>
+                            {p.producto?.codigo_barras || p.producto?.sku || '—'}
+                          </div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', lineHeight: 1.3 }}>
+                            {p.producto?.nombre || '—'}
+                            {p.producto?.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {p.producto.variante}</span>}
+                          </div>
+                        </div>
+                        <div style={{ color: '#9CA3AF', fontSize: 16, fontWeight: 700, transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11 }}>
+                        <div style={{ background: '#fff', padding: '6px 8px', textAlign: 'center', border: '1px solid #F3F4F6' }}>
+                          <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Zonas</div>
+                          <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: p.numZonas > 1 ? '#92400E' : '#374151', fontSize: 16 }}>{p.numZonas}</div>
+                        </div>
+                        <div style={{ background: '#fff', padding: '6px 8px', textAlign: 'center', border: '1px solid #F3F4F6' }}>
+                          <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Total</div>
+                          <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: G, fontSize: 16 }}>{p.total}</div>
+                        </div>
+                        <div style={{ background: '#fff', padding: '6px 8px', textAlign: 'center', border: '1px solid #F3F4F6' }}>
+                          <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Concentr.</div>
+                          <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: concentracionColor, fontSize: 16 }}>{p.concentracion.toFixed(0)}%</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 11, color: '#6B7280' }}>
+                        <b style={{ color: '#374151', fontWeight: 600 }}>Zona principal:</b> {p.zonaPrincipal}
                       </div>
                     </div>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: p.numZonas > 1 ? '#92400E' : '#374151', textAlign: 'right' }}>{p.numZonas}</div>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, textAlign: 'right' }}>{p.total}</div>
-                    <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 8 }}>
-                      <span style={{ color: '#111827', fontWeight: 600 }}>{p.zonaPrincipal}</span>
-                      {p.numZonas > 1 && (
-                        <span style={{ color: concentracionColor, fontFamily: "'DM Mono',monospace", marginLeft: 6 }}>
-                          {p.concentracion.toFixed(0)}%
-                        </span>
-                      )}
+                  ) : (
+                    // ── Tabla desktop ──
+                    <div
+                      onClick={() => toggleExpand(pid)}
+                      style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 80px 1fr 28px', padding: '10px 14px', alignItems: 'center', background: abierto ? BL : (i % 2 === 0 ? '#fff' : '#FAFAFA'), cursor: 'pointer' }}
+                    >
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: '#fff', border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.producto?.codigo_barras || p.producto?.sku || '—'}
+                      </div>
+                      <div style={{ paddingLeft: 8, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, fontSize: 13, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.producto?.nombre || '—'}
+                          {p.producto?.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {p.producto.variante}</span>}
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: p.numZonas > 1 ? '#92400E' : '#374151', textAlign: 'right' }}>{p.numZonas}</div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G, textAlign: 'right' }}>{p.total}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 8 }}>
+                        <span style={{ color: '#111827', fontWeight: 600 }}>{p.zonaPrincipal}</span>
+                        {p.numZonas > 1 && (
+                          <span style={{ color: concentracionColor, fontFamily: "'DM Mono',monospace", marginLeft: 6 }}>
+                            {p.concentracion.toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</div>
                     </div>
-                    <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 12, transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</div>
-                  </div>
+                  )}
                   {abierto && (
-                    <div style={{ background: '#F9FAFB', padding: '8px 14px 12px 122px', borderTop: '1px solid #E5E7EB' }}>
+                    <div style={{ background: '#F9FAFB', padding: isNarrow ? '8px 14px 12px 14px' : '8px 14px 12px 122px', borderTop: '1px solid #E5E7EB' }}>
                       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 6 }}>
                         Desglose por zona
                       </div>
                       {p.zonas.map((z, j) => {
                         const pct = p.total > 0 ? (z.cantidad / p.total) * 100 : 0
                         return (
-                          <div key={j} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 50px 120px', alignItems: 'center', padding: '4px 0', fontSize: 12 }}>
+                          <div key={j} style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr 50px 44px' : '1fr 70px 50px 120px', alignItems: 'center', padding: '4px 0', fontSize: 12, gap: 6 }}>
                             <div style={{ color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{z.zona?.nombre || '—'}</div>
                             <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: '#111827', textAlign: 'right' }}>{z.cantidad}</div>
                             <div style={{ fontFamily: "'DM Mono',monospace", color: '#6B7280', textAlign: 'right' }}>{pct.toFixed(0)}%</div>
-                            <div style={{ marginLeft: 10, height: 6, background: '#E5E7EB', position: 'relative' }}>
-                              <div style={{ width: `${pct}%`, height: '100%', background: j === 0 ? G : B }} />
-                            </div>
+                            {!isNarrow && (
+                              <div style={{ marginLeft: 10, height: 6, background: '#E5E7EB', position: 'relative' }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: j === 0 ? G : B }} />
+                              </div>
+                            )}
                           </div>
                         )
                       })}

@@ -3,10 +3,12 @@ import { B, BL, G, GL } from '../../../constants/theme'
 import { getReporteHistorico, exportToXlsx } from '../../../services/reportService'
 import { fmtFecha } from '../../../services/conteoService'
 import Spinner from '../../../components/Spinner'
+import { useIsNarrow } from '../../../hooks/useIsNarrow'
 
 const normalize = s => (s || '').toString().toLowerCase().trim()
 
 export default function ReporteHistorico({ deposito }) {
+  const isNarrow = useIsNarrow()
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -170,15 +172,47 @@ export default function ReporteHistorico({ deposito }) {
           {rows.length === 0 ? 'No hay inventarios cerrados para este depósito todavía.' : 'Sin resultados con los filtros aplicados.'}
         </div>
       ) : (
-        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 360px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 120px 80px 100px 100px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
-            {['Inventario', 'Período', 'Responsable', 'Zonas', 'Productos', 'Unidades'].map((h, i) => (
-              <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
-            ))}
-          </div>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          {!isNarrow && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 120px 80px 100px 100px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
+              {['Inventario', 'Período', 'Responsable', 'Zonas', 'Productos', 'Unidades'].map((h, i) => (
+                <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+          )}
           {filtradas.map((r, i) => {
             const variacion = promedio ? ((r.unidades - promedio) / promedio) * 100 : 0
-            return (
+            const variacionColor = Math.abs(variacion) < 1 ? '#9CA3AF' : variacion > 0 ? G : '#DC2626'
+            return isNarrow ? (
+              // ── Card mobile ──
+              <div key={r.id} style={{ padding: '12px 14px', borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 4 }}>{r.nombre}</div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>
+                  {fmtFecha(r.fecha_inicio) || '—'}{r.fecha_limite ? ` → ${fmtFecha(r.fecha_limite)}` : ''}
+                  {r.responsable && <span style={{ marginLeft: 8 }}>· {r.responsable}</span>}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11 }}>
+                  <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                    <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Zonas</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: '#374151', fontSize: 14 }}>{r.zonas}</div>
+                  </div>
+                  <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                    <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Productos</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: B, fontSize: 14 }}>{r.productos}</div>
+                  </div>
+                  <div style={{ background: '#F9FAFB', padding: '6px 8px', textAlign: 'center' }}>
+                    <div style={{ color: '#9CA3AF', fontWeight: 700, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Unidades</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: G, fontSize: 14 }}>{r.unidades}</div>
+                    {filtradas.length > 1 && (
+                      <div style={{ fontSize: 9, color: variacionColor, fontFamily: "'DM Mono',monospace" }}>
+                        {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // ── Tabla desktop ──
               <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 120px 80px 100px 100px', padding: '11px 14px', borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.nombre}</div>
@@ -192,7 +226,7 @@ export default function ReporteHistorico({ deposito }) {
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: G }}>{r.unidades}</div>
                   {filtradas.length > 1 && (
-                    <div style={{ fontSize: 10, color: Math.abs(variacion) < 1 ? '#9CA3AF' : variacion > 0 ? G : '#DC2626', fontFamily: "'DM Mono',monospace" }}>
+                    <div style={{ fontSize: 10, color: variacionColor, fontFamily: "'DM Mono',monospace" }}>
                       {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}% vs promedio
                     </div>
                   )}

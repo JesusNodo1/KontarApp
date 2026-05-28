@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { B, BL, G, GL } from '../../../constants/theme'
 import { getReporteAuditoria, exportToXlsx } from '../../../services/reportService'
 import Spinner from '../../../components/Spinner'
+import { useIsNarrow } from '../../../hooks/useIsNarrow'
 
 function fmtHora(iso) {
   if (!iso) return ''
@@ -11,6 +12,7 @@ function fmtHora(iso) {
 const normalize = s => (s || '').toString().toLowerCase().trim()
 
 export default function ReporteAuditoria({ inventario }) {
+  const isNarrow = useIsNarrow()
   const [rows,    setRows]    = useState([])
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -217,16 +219,47 @@ export default function ReporteAuditoria({ inventario }) {
           {rows.length === 0 ? 'No hay scans registrados en este inventario.' : 'Sin resultados.'}
         </div>
       ) : (
-        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '130px 110px 1fr 130px 100px 56px 56px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
-            {['Fecha', 'Cód.', 'Producto', 'Zona', 'Usuario', 'Antes', 'Desp.', 'Delta'].map((h, i) => (
-              <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 5 ? 'right' : 'left' }}>{h}</div>
-            ))}
-          </div>
+        <div className="scroll-pc" style={{ background: '#fff', border: '1px solid #E5E7EB', maxHeight: 'calc(100vh - 260px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
+          {!isNarrow && (
+            <div style={{ display: 'grid', gridTemplateColumns: '130px 110px 1fr 130px 100px 56px 56px 64px', padding: '8px 14px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
+              {['Fecha', 'Cód.', 'Producto', 'Zona', 'Usuario', 'Antes', 'Desp.', 'Delta'].map((h, i) => (
+                <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 5 ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+          )}
           <div>
             {filtradas.map((s, i) => {
               const delta = s.delta ?? (s.next - s.prev)
-              return (
+              return isNarrow ? (
+                // ── Card mobile ──
+                <div key={s.id} style={{ padding: '12px 14px', borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', marginBottom: 4 }}>
+                        {s.producto?.codigo_barras || s.producto?.sku || '—'}
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', lineHeight: 1.3 }}>
+                        {s.producto?.nombre || '—'}
+                        {s.producto?.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {s.producto.variante}</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', minWidth: 70 }}>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 18, fontWeight: 700, color: delta >= 0 ? G : '#DC2626', lineHeight: 1 }}>
+                        {delta >= 0 ? '+' : ''}{delta}
+                      </div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>
+                        {s.prev} → {s.next}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 11, color: '#6B7280' }}>
+                    <span><b style={{ color: '#374151', fontWeight: 600 }}>Zona:</b> {s.zona?.nombre || '—'}</span>
+                    <span><b style={{ color: '#374151', fontWeight: 600 }}>Usuario:</b> {s.usuario?.nombre || '—'}</span>
+                    <span style={{ color: '#9CA3AF' }}>{fmtHora(s.created_at)}</span>
+                  </div>
+                </div>
+              ) : (
+                // ── Tabla desktop ──
                 <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '130px 110px 1fr 130px 100px 56px 56px 64px', padding: '10px 14px', borderBottom: i < filtradas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                   <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: '#6B7280' }}>{fmtHora(s.created_at)}</div>
                   <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
