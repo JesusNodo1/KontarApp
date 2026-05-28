@@ -212,6 +212,228 @@ export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
   return { total, sinProducto, deposito: dep.id_externo, depositoNombre: dep.nombre, depositoId: dep.id }
 }
 
+// ── Ajustes de stock al ERP (KONTAR_AJUSTE) ─────────────────
+
+/**
+ * Llama al Edge Function con `reporte` + payload arbitrario.
+ * Devuelve la respuesta completa (incluido `data`).
+ */
+async function _callConPayload(payload) {
+  const token = _getToken()
+  const res = await fetch(EDGE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  const json = await res.json().catch(() => ({}))
+  return { httpOk: res.ok, status: res.status, json }
+}
+
+/**
+ * Devuelve un Set con los producto_id ya enviados al ERP para este inventario.
+ */
+export async function getAjustesEnviadosIds(inventario_id) {
+  const { data, error } = await supabase
+    .from('ajustes_enviados')
+    .select('producto_id')
+    .eq('inventario_id', inventario_id)
+  if (error) throw new Error(error.message)
+  return new Set((data || []).map(r => Number(r.producto_id)))
+}
+
+/**
+ * Envía a `KONTAR_AJUSTE` todos los productos del inventario con diferencia o pendientes,
+ * saltando los ya enviados. Por cada éxito inserta en `ajustes_enviados` para que no se
+ * reenvíe nunca más. Por cada error sigue con el siguiente (sin marcar como enviado).
+ *
+ * @param {object} ctx
+ *   - inventario:     {id, estado, fecha_inicio, deposito_id}
+ *   - diferencias:    array de filas de getDiferencias({filas, resumen})
+ *   - onProgress?:    fn({index, total, exitos, errores, omitidos, ultimoProducto, ultimoMensaje})
+ *
+ * @returns {Promise<{exitos:number, errores:number, omitidos:number, total:number}>}
+ */
+export async function enviarAjustesInventario({ inventario, diferencias, onProgress }) {
+  if (!inventario || inventario.estado !== 'cerrado') {
+    throw new Error('Sólo se pueden enviar ajustes de inventarios cerrados.')
+  }
+  const cliente_id = await _getClienteId()
+
+  // Resolver IDs externos de sucursal y depósito
+  const { data: dep, error: depErr } = await supabase
+    .from('depositos')
+    .select('id, id_externo, sucursal_id')
+    .eq('id', inventario.deposito_id)
+    .eq('cliente_id', cliente_id)
+    .maybeSingle()
+  if (depErr) throw new Error(depErr.message)
+  if (!dep)            throw new Error('Depósito del inventario no encontrado para este cliente.')
+  if (!dep.id_externo) throw new Error('El depósito no tiene id_externo cargado. Sincronizá depósitos primero.')
+
+  const { data: suc, error: sucErr } = await supabase
+    .from('sucursales')
+    .select('id, id_externo')
+    .eq('id', dep.sucursal_id)
+    .maybeSingle()
+  if (sucErr) throw new Error(sucErr.message)
+  if (!suc)            throw new Error('Sucursal del depósito no encontrada.')
+  if (!suc.id_externo) throw new Error('La sucursal no tiene id_externo cargado. Sincronizá sucursales primero.')
+
+  // Filtrar filas a enviar: diferencia != 0 OR pendiente
+  const todas = (diferencias?.filas || []).filter(f =>
+    (Number(f.diferencia) || 0) !== 0 || f.estado === 'pendiente'
+  )
+
+  // Excluir ya enviados
+  const yaEnviados = await getAjustesEnviadosIds(inventario.id)
+  const pendientes = todas.filter(f => !yaEnviados.has(Number(f.producto_id)))
+
+  // Fecha: usar la del inicio del inventario o hoy
+  const fecha = (inventario.fecha_inicio || new Date().toISOString().slice(0, 10)).slice(0, 10)
+
+  let exitos = 0, errores = 0, omitidos = 0
+  const total = pendientes.length
+
+  // userId para el campo enviado_por
+  const { data: { user } } = await supabase.auth.getUser()
+
+  for (let i = 0; i < pendientes.length; i++) {
+    const f = pendientes[i]
+    const conteo  = Number(f.contado) || 0
+    const sistema = Number(f.teorico) || 0
+
+    let ultimoMensaje = ''
+    let ok = false
+
+    if (!f.id_externo) {
+      omitidos++
+      ultimoMensaje = `Producto sin id_externo`
+    } else if (!f.codigo_barras) {
+      omitidos++
+      ultimoMensaje = `Producto sin código de barras`
+    } else {
+      try {
+        const { httpOk, json } = await _callConPayload({
+          reporte:     'KONTAR_AJUSTE',
+          fecha,
+          sucursal:    Number(suc.id_externo),
+          deposito:    Number(dep.id_externo),
+          codigo:      String(f.id_externo),
+          codigoBarra: String(f.codigo_barras),
+          conteo,
+          sistema,
+        })
+        const row = Array.isArray(json?.data) ? json.data[0] : null
+        const procesado = row?.Procesado === true || row?.Procesado === 1
+        ultimoMensaje = row?.Mensaje || json?.error || (httpOk ? 'OK' : `HTTP ${json?.status || ''}`)
+        ok = httpOk && procesado
+
+        if (ok) {
+          // Insertar en ajustes_enviados (idempotente: si ya existe, falla — pero no debería pasar)
+          const { error: insErr } = await supabase.from('ajustes_enviados').insert({
+            inventario_id: inventario.id,
+            producto_id:   f.producto_id,
+            cliente_id,
+            conteo,
+            sistema,
+            mensaje:       ultimoMensaje,
+            ok:            true,
+            enviado_por:   user?.id || null,
+          })
+          if (insErr) {
+            // Si el INSERT falla, no contamos como éxito (se reintentará)
+            errores++
+            ok = false
+            ultimoMensaje = `Enviado al ERP pero falló registro local: ${insErr.message}`
+          } else {
+            exitos++
+          }
+        } else {
+          errores++
+        }
+      } catch (e) {
+        errores++
+        ultimoMensaje = e?.message || 'Error de red'
+      }
+    }
+
+    onProgress?.({
+      index: i + 1,
+      total,
+      exitos,
+      errores,
+      omitidos,
+      ultimoProducto: f.nombre,
+      ultimoMensaje,
+      ok,
+    })
+  }
+
+  return { exitos, errores, omitidos, total }
+}
+
+/**
+ * Variante demo de enviarAjustesInventario: NO llama al Edge Function ni inserta
+ * en ajustes_enviados. Simula el envío con un delay corto por producto y siempre
+ * "procesa" exitosamente. Útil para validar la UI sin tener la tabla creada ni el SP listo.
+ */
+export async function enviarAjustesInventarioDemo({ inventario, diferencias, onProgress }) {
+  if (!inventario) throw new Error('Falta inventario')
+
+  const todas = (diferencias?.filas || []).filter(f =>
+    (Number(f.diferencia) || 0) !== 0 || f.estado === 'pendiente'
+  )
+
+  // En demo no excluimos los ya enviados (no consultamos la DB)
+  const pendientes = todas
+  let exitos = 0, errores = 0, omitidos = 0
+  const total = pendientes.length
+
+  for (let i = 0; i < pendientes.length; i++) {
+    const f = pendientes[i]
+    // Simular un retardo de red para que se vea la barra de progreso
+    await new Promise(r => setTimeout(r, 120))
+
+    let ok = false
+    let mensaje = ''
+
+    if (!f.id_externo) {
+      omitidos++
+      mensaje = 'DEMO: producto sin id_externo (no se enviaría)'
+    } else if (!f.codigo_barras) {
+      omitidos++
+      mensaje = 'DEMO: producto sin código de barras (no se enviaría)'
+    } else {
+      // Simular: 1 de cada 10 falla, el resto pasa
+      if ((i + 1) % 10 === 0) {
+        errores++
+        mensaje = `DEMO: error simulado (cant=${f.contado}, teorico=${f.teorico})`
+      } else {
+        exitos++
+        ok = true
+        mensaje = `DEMO ok · ajuste ${Number(f.contado) - Number(f.teorico)}`
+      }
+    }
+
+    onProgress?.({
+      index: i + 1,
+      total,
+      exitos,
+      errores,
+      omitidos,
+      ultimoProducto: f.nombre,
+      ultimoMensaje: mensaje,
+      ok,
+    })
+  }
+
+  return { exitos, errores, omitidos, total }
+}
+
 // ── Sincronización completa (orden importa) ──────────────────
 export async function sincronizarTodo(onProgress) {
   const r = { sucursales: 0, depositos: 0, productos: 0, sinSucursal: 0, descartadas: 0 }

@@ -5,6 +5,7 @@ import { supabase } from '../../services/supabase'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
 import DiferenciasPanel from './DiferenciasPanel'
+import EnvioAjustesPanel from './EnvioAjustesPanel'
 
 export default function DiferenciasScreen() {
   const { id } = useParams()
@@ -12,6 +13,7 @@ export default function DiferenciasScreen() {
   const [inv,    setInv]    = useState(null)
   const [load,   setLoad]   = useState(true)
   const [error,  setError]  = useState('')
+  const [difData, setDifData] = useState(null)
 
   useEffect(() => {
     setLoad(true)
@@ -60,7 +62,10 @@ export default function DiferenciasScreen() {
         </div>
       </div>
 
-      <DiferenciasPanel inventario={inv} />
+      {/* Panel para enviar ajustes al ERP — sólo cerrado + API habilitada */}
+      <EnvioAjustesPanel inventario={inv} data={difData} />
+
+      <DiferenciasPanel inventario={inv} onData={setDifData} />
     </div>
   )
 }

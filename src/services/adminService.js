@@ -195,7 +195,7 @@ export async function getDiferencias(inventario_id) {
   while (true) {
     const { data, error } = await supabase
       .from('inventario_stock_teorico')
-      .select('producto_id, cantidad, costo_unitario, producto:producto_id(id, nombre, variante, sku, codigo_barras)')
+      .select('producto_id, cantidad, costo_unitario, producto:producto_id(id, nombre, variante, sku, codigo_barras, id_externo)')
       .eq('inventario_id', inventario_id)
       .range(from, from + PAGE - 1)
     if (error) throw new Error(error.message)
@@ -211,7 +211,7 @@ export async function getDiferencias(inventario_id) {
   while (true) {
     const { data, error } = await supabase
       .from('conteos')
-      .select('producto_id, cantidad, producto:producto_id(id, nombre, variante, sku, codigo_barras)')
+      .select('producto_id, cantidad, producto:producto_id(id, nombre, variante, sku, codigo_barras, id_externo)')
       .eq('inventario_id', inventario_id)
       .range(from, from + PAGE - 1)
     if (error) throw new Error(error.message)
@@ -226,6 +226,7 @@ export async function getDiferencias(inventario_id) {
   for (const t of teoricoRows) {
     map.set(t.producto_id, {
       producto_id:   t.producto_id,
+      id_externo:    t.producto?.id_externo || null,
       nombre:        t.producto?.nombre || '—',
       variante:      t.producto?.variante || '',
       sku:           t.producto?.sku || '',
@@ -242,6 +243,7 @@ export async function getDiferencias(inventario_id) {
     } else {
       map.set(c.producto_id, {
         producto_id:   c.producto_id,
+        id_externo:    c.producto?.id_externo || null,
         nombre:        c.producto?.nombre || '—',
         variante:      c.producto?.variante || '',
         sku:           c.producto?.sku || '',
