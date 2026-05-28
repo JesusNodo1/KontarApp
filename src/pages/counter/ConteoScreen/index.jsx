@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { B, BD, BL, G, GD, GL } from '../../../constants/theme'
 import { bxCod } from '../../../services/productService'
 import { loadZx } from '../../../services/scanner'
@@ -198,6 +198,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       delta:         next - prev,
       prev,
       next,
+      kind:          'scan',
       ts:            new Date(),
     }
     setScans(s => [local, ...s])
@@ -220,17 +221,45 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     return { prev, next }
   }, [reg, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
 
+  // Busca el siguiente scan original sin anular, recorriendo el historial
+  // desde el más reciente y descontando los pares (undo, scan).
+  const nextUndoable = useMemo(() => {
+    let depth = 0
+    for (const s of scans) {
+      if (s.kind === 'undo') depth++
+      else if (depth > 0) depth--
+      else return s
+    }
+    return null
+  }, [scans])
+
   // Deshacer el último scan: restaura la cantidad al valor previo y deja un
   // scan inverso en el historial (auditoría completa, sin borrar el original).
+  // Recorre el historial saltando pares ya anulados, así varios deshaceres
+  // consecutivos bajan un escalón cada uno (no se cancelan entre sí).
   const undoLast = useCallback(async () => {
-    if (scans.length === 0 || undoing) return
-    const last = scans[0]
+    if (undoing) return
+    const last = nextUndoable
+    if (!last) return
     setUndoing(true)
     // Optimistic state update sobre conteos (cantidad agregada)
     setConteos(prev => {
       if (last.prev === 0) return prev.filter(x => x.producto_id !== last.producto_id)
       const i = prev.findIndex(x => x.producto_id === last.producto_id)
-      if (i === -1) return prev
+      if (i === -1) {
+        // El producto puede no estar en el state local (por ejemplo si ya estaba
+        // en 0 después de un undo previo) — lo agregamos para reflejar la cantidad real.
+        return [{
+          id:            last.producto_id,
+          producto_id:   last.producto_id,
+          nombre:        last.nombre,
+          variante:      last.variante,
+          sku:           last.sku,
+          codigo_barras: last.codigo_barras,
+          cantidad:      last.prev,
+          ts:            new Date(),
+        }, ...prev]
+      }
       const cp = [...prev]
       cp[i] = { ...cp[i], cantidad: last.prev, ts: new Date() }
       return cp
@@ -248,6 +277,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       delta:         last.prev - last.next,
       prev:          last.next,
       next:          last.prev,
+      kind:          'undo',
       ts:            new Date(),
     }
     setScans(s => [inverseLocal, ...s])
@@ -280,7 +310,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       console.error('[ConteoScreen] undoLast error:', e)
     }
     setUndoing(false)
-  }, [scans, undoing, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
+  }, [nextUndoable, undoing, zona.id, inv.id, inv.cliente_id, user.id, user.cliente_id])
 
   /* ── procesamiento de código desde cámara (ref para evitar stale closure) ── */
   camProcRef.current = async cod => {
@@ -675,14 +705,14 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
             {rView === 'unitario' && (
               <button
                 onClick={undoLast}
-                disabled={scans.length === 0 || undoing}
-                style={{ width: '100%', padding: '12px 0', background: scans.length === 0 || undoing ? '#F3F4F6' : '#FEF3C7', border: `2px solid ${scans.length === 0 || undoing ? '#E5E7EB' : '#F59E0B'}`, fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: scans.length === 0 || undoing ? '#9CA3AF' : '#92400E', cursor: scans.length === 0 || undoing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                disabled={!nextUndoable || undoing}
+                style={{ width: '100%', padding: '12px 0', background: !nextUndoable || undoing ? '#F3F4F6' : '#FEF3C7', border: `2px solid ${!nextUndoable || undoing ? '#E5E7EB' : '#F59E0B'}`, fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: !nextUndoable || undoing ? '#9CA3AF' : '#92400E', cursor: !nextUndoable || undoing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {undoing
                   ? <><Spinner /> Revirtiendo...</>
                   : <>
                       <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-                      {scans.length === 0 ? 'Sin scans para deshacer' : `Deshacer último (${scans[0].nombre})`}
+                      {!nextUndoable ? 'Sin scans para deshacer' : `Deshacer último (${nextUndoable.nombre})`}
                     </>
                 }
               </button>

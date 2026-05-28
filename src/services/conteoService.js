@@ -174,6 +174,10 @@ export async function getScansPorZona(zona_id) {
     prev:          s.prev,
     next:          s.next,
     delta:         s.delta,
+    // 'undo' si el delta es negativo (revierte cantidad); 'scan' en caso contrario.
+    // No es 100% preciso para scans de modo total que bajan, pero es suficiente
+    // para que el botón Deshacer no haga "redo" al revés.
+    kind:          (Number(s.delta) || 0) < 0 ? 'undo' : 'scan',
     ts:            new Date(s.created_at),
   }))
 }
