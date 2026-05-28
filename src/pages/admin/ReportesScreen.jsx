@@ -7,11 +7,13 @@ import ReporteConteo      from './reportes/ReporteConteo'
 import ReporteDiferencias from './reportes/ReporteDiferencias'
 import ReporteAuditoria   from './reportes/ReporteAuditoria'
 import ReporteHistorico   from './reportes/ReporteHistorico'
+import ReporteDispersion  from './reportes/ReporteDispersion'
 
 const TABS = [
   { k: 'conteo',      label: 'Conteo',      needs: 'inventario' },
   { k: 'diferencias', label: 'Diferencias', needs: 'inventario' },
   { k: 'auditoria',   label: 'Auditoría',   needs: 'inventario' },
+  { k: 'dispersion',  label: 'Dispersión',  needs: 'inventario' },
   { k: 'historico',   label: 'Histórico',   needs: 'deposito'   },
 ]
 
@@ -171,6 +173,7 @@ export default function ReportesScreen() {
       {tab === 'conteo'      && <ReporteConteo      inventario={inventario} />}
       {tab === 'diferencias' && <ReporteDiferencias inventario={inventario} />}
       {tab === 'auditoria'   && <ReporteAuditoria   inventario={inventario} />}
+      {tab === 'dispersion'  && <ReporteDispersion  inventario={inventario} />}
       {tab === 'historico'   && <ReporteHistorico   deposito={deposito} />}
     </div>
   )

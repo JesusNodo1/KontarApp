@@ -57,6 +57,49 @@ export async function getReporteAuditoria(inventario_id) {
 }
 
 /**
+ * Dispersión por producto: para cada producto del inventario, devuelve
+ * en cuántas zonas aparece, cantidad total y desglose por zona.
+ */
+export async function getReporteDispersion(inventario_id) {
+  const rows = await fetchAllPaginated(
+    supabase
+      .from('conteos')
+      .select('cantidad, producto_id, zona_id, producto:producto_id(id, sku, nombre, variante, codigo_barras), zona:zona_id(id, nombre)')
+      .eq('inventario_id', inventario_id)
+  )
+
+  const map = new Map() // producto_id → { producto, zonas: Map(zona_id → {zona, cantidad}), total }
+  for (const r of rows) {
+    const pid = r.producto_id
+    if (!pid) continue
+    let p = map.get(pid)
+    if (!p) {
+      p = { producto: r.producto, zonas: new Map(), total: 0 }
+      map.set(pid, p)
+    }
+    const zid = r.zona_id ?? -1
+    const cant = Number(r.cantidad) || 0
+    const z = p.zonas.get(zid)
+    if (z) z.cantidad += cant
+    else p.zonas.set(zid, { zona: r.zona, cantidad: cant })
+    p.total += cant
+  }
+
+  return [...map.values()].map(p => {
+    const zonasArr = [...p.zonas.values()].sort((a, b) => b.cantidad - a.cantidad)
+    const top = zonasArr[0]
+    return {
+      producto:     p.producto,
+      total:        p.total,
+      numZonas:     zonasArr.length,
+      zonas:        zonasArr,
+      zonaPrincipal: top?.zona?.nombre || '—',
+      concentracion: p.total > 0 && top ? (top.cantidad / p.total) * 100 : 0,
+    }
+  })
+}
+
+/**
  * Histórico de inventarios cerrados de un depósito, con métricas agregadas.
  * Para cada inventario: nº de productos contados, total unidades, fechas.
  */

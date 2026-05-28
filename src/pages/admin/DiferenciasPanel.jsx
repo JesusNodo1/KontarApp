@@ -24,6 +24,8 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   const [status,    setStatus]    = useState({ cargado: false, total: 0 })
   const [filtro,    setFiltro]    = useState('todos')   // todos | ok | faltante | sobrante | no-esperado
   const [busqueda,  setBusqueda]  = useState('')
+  const [magMin,    setMagMin]    = useState('')        // magnitud mínima |dif|
+  const [variante,  setVariante]  = useState('')        // tipo de producto (variante)
   const [cargando,  setCargando]  = useState(false)
   const [errorMsg,  setErrorMsg]  = useState('')
   const [okMsg,     setOkMsg]     = useState('')
@@ -117,11 +119,21 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     }
   }
 
+  const variantes = useMemo(() => {
+    if (!data) return []
+    const set = new Set()
+    for (const f of data.filas) { if (f.variante) set.add(f.variante) }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [data])
+
   const filtradas = useMemo(() => {
     if (!data) return []
     const n = norm(busqueda)
+    const mag = magMin === '' ? null : Math.abs(Number(magMin))
     return data.filas.filter(f => {
       if (filtro !== 'todos' && f.estado !== filtro) return false
+      if (variante && (f.variante || '') !== variante) return false
+      if (mag != null && !Number.isNaN(mag) && Math.abs(Number(f.diferencia) || 0) < mag) return false
       if (!n) return true
       return (
         norm(f.nombre).includes(n) ||
@@ -130,9 +142,9 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
         norm(f.sku).includes(n)
       )
     })
-  }, [data, filtro, busqueda])
+  }, [data, filtro, busqueda, magMin, variante])
 
-  useEffect(() => { setPagina(1) }, [filtro, busqueda])
+  useEffect(() => { setPagina(1) }, [filtro, busqueda, magMin, variante])
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
   const paginaAct    = Math.min(pagina, totalPaginas)
@@ -257,6 +269,21 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
           type="text" placeholder="Buscar por nombre, código, SKU..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
           style={{ flex: 1, minWidth: 220, height: 38, border: '2px solid #E5E7EB', padding: '0 12px', fontSize: 13, background: '#fff' }}
         />
+        <input
+          type="number" min="0" inputMode="numeric"
+          placeholder="|dif| ≥"
+          value={magMin} onChange={e => setMagMin(e.target.value)}
+          style={{ width: 110, height: 38, border: `2px solid ${magMin ? B : '#E5E7EB'}`, background: magMin ? BL : '#fff', padding: '0 10px', fontSize: 13, fontFamily: "'DM Mono',monospace", color: '#111827' }}
+          title="Magnitud mínima de la diferencia (|contado − teórico|)"
+        />
+        <select
+          value={variante} onChange={e => setVariante(e.target.value)}
+          style={{ height: 38, padding: '0 10px', border: `2px solid ${variante ? B : '#E5E7EB'}`, background: variante ? BL : '#fff', fontSize: 12, fontWeight: 600, color: variante ? '#111827' : '#6B7280', minWidth: 150, cursor: 'pointer' }}
+          title="Filtrar por variante (tipo de producto)"
+        >
+          <option value="">Todas las variantes</option>
+          {variantes.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
         {apiHabilitada && renderSelectorOrigen(true)}
         {apiHabilitada && (
           <button

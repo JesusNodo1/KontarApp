@@ -15,6 +15,11 @@ export default function ReporteConteo({ inventario }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const [q,       setQ]       = useState('')
+  const [zonaId,  setZonaId]  = useState('')
+  const [userNom, setUserNom] = useState('')
+  const [variante, setVariante] = useState('')
+  const [desde,   setDesde]   = useState('')
+  const [hasta,   setHasta]   = useState('')
 
   useEffect(() => {
     if (!inventario) { setRows([]); return }
@@ -25,18 +30,61 @@ export default function ReporteConteo({ inventario }) {
       .finally(() => setLoading(false))
   }, [inventario?.id])
 
+  const zonas = useMemo(() => {
+    const map = new Map()
+    for (const r of rows) {
+      const z = r.zona
+      if (z?.id != null && !map.has(z.id)) map.set(z.id, z.nombre || `Zona ${z.id}`)
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [rows])
+
+  const usuarios = useMemo(() => {
+    const set = new Set()
+    for (const r of rows) {
+      const n = r.usuario?.nombre
+      if (n) set.add(n)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  const variantes = useMemo(() => {
+    const set = new Set()
+    for (const r of rows) {
+      const v = r.producto?.variante
+      if (v) set.add(v)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
   const filtradas = useMemo(() => {
-    if (!q.trim()) return rows
     const n = normalize(q)
-    return rows.filter(c =>
-      normalize(c.producto?.nombre).includes(n)        ||
-      normalize(c.producto?.variante).includes(n)      ||
-      normalize(c.producto?.codigo_barras).includes(n) ||
-      normalize(c.producto?.sku).includes(n)           ||
-      normalize(c.zona?.nombre).includes(n)            ||
-      normalize(c.usuario?.nombre).includes(n)
-    )
-  }, [rows, q])
+    const desdeMs = desde ? new Date(desde + 'T00:00:00').getTime() : null
+    const hastaMs = hasta ? new Date(hasta + 'T23:59:59').getTime() : null
+    return rows.filter(c => {
+      if (zonaId && Number(c.zona?.id) !== Number(zonaId)) return false
+      if (userNom && c.usuario?.nombre !== userNom) return false
+      if (variante && (c.producto?.variante || '') !== variante) return false
+      if (desdeMs || hastaMs) {
+        const t = c.updated_at ? new Date(c.updated_at).getTime() : NaN
+        if (Number.isNaN(t)) return false
+        if (desdeMs && t < desdeMs) return false
+        if (hastaMs && t > hastaMs) return false
+      }
+      if (!n) return true
+      return (
+        normalize(c.producto?.nombre).includes(n)        ||
+        normalize(c.producto?.variante).includes(n)      ||
+        normalize(c.producto?.codigo_barras).includes(n) ||
+        normalize(c.producto?.sku).includes(n)           ||
+        normalize(c.zona?.nombre).includes(n)            ||
+        normalize(c.usuario?.nombre).includes(n)
+      )
+    })
+  }, [rows, q, zonaId, userNom, variante, desde, hasta])
+
+  const hayFiltros = q || zonaId || userNom || variante || desde || hasta
+  const limpiar = () => { setQ(''); setZonaId(''); setUserNom(''); setVariante(''); setDesde(''); setHasta('') }
 
   const totalUnidades  = filtradas.reduce((s, r) => s + (Number(r.cantidad) || 0), 0)
   const totalProductos = new Set(filtradas.map(r => r.producto?.id).filter(Boolean)).size
@@ -81,7 +129,7 @@ export default function ReporteConteo({ inventario }) {
   return (
     <div>
       {/* toolbar */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
           <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
             <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><circle cx={11} cy={11} r={7}/><path d="M21 21l-4.35-4.35"/></svg>
@@ -101,6 +149,52 @@ export default function ReporteConteo({ inventario }) {
           <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
           Exportar Excel
         </button>
+      </div>
+
+      {/* filtros: zona / usuario / fechas */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select
+          value={zonaId} onChange={e => setZonaId(e.target.value)}
+          style={{ height: 38, padding: '0 10px', border: `2px solid ${zonaId ? B : '#E5E7EB'}`, background: zonaId ? BL : '#fff', fontSize: 12, fontWeight: 600, color: zonaId ? '#111827' : '#6B7280', minWidth: 150, cursor: 'pointer' }}
+        >
+          <option value="">Todas las zonas</option>
+          {zonas.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+        </select>
+        <select
+          value={userNom} onChange={e => setUserNom(e.target.value)}
+          style={{ height: 38, padding: '0 10px', border: `2px solid ${userNom ? B : '#E5E7EB'}`, background: userNom ? BL : '#fff', fontSize: 12, fontWeight: 600, color: userNom ? '#111827' : '#6B7280', minWidth: 150, cursor: 'pointer' }}
+        >
+          <option value="">Todos los usuarios</option>
+          {usuarios.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <select
+          value={variante} onChange={e => setVariante(e.target.value)}
+          style={{ height: 38, padding: '0 10px', border: `2px solid ${variante ? B : '#E5E7EB'}`, background: variante ? BL : '#fff', fontSize: 12, fontWeight: 600, color: variante ? '#111827' : '#6B7280', minWidth: 150, cursor: 'pointer' }}
+          title="Filtrar por variante (tipo de producto)"
+        >
+          <option value="">Todas las variantes</option>
+          {variantes.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <input
+          type="date" value={desde} onChange={e => setDesde(e.target.value)} max={hasta || undefined}
+          style={{ height: 38, padding: '0 8px', border: `2px solid ${desde ? B : '#E5E7EB'}`, background: desde ? BL : '#fff', fontSize: 12, fontWeight: 600, color: '#111827' }}
+          title="Desde"
+        />
+        <span style={{ color: '#9CA3AF', fontSize: 12 }}>→</span>
+        <input
+          type="date" value={hasta} onChange={e => setHasta(e.target.value)} min={desde || undefined}
+          style={{ height: 38, padding: '0 8px', border: `2px solid ${hasta ? B : '#E5E7EB'}`, background: hasta ? BL : '#fff', fontSize: 12, fontWeight: 600, color: '#111827' }}
+          title="Hasta"
+        />
+        {hayFiltros && (
+          <button
+            onClick={limpiar}
+            style={{ height: 38, padding: '0 12px', background: '#fff', border: '2px solid #E5E7EB', color: '#6B7280', fontWeight: 600, fontSize: 12, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
+            title="Limpiar filtros"
+          >
+            ✕ Limpiar
+          </button>
+        )}
       </div>
 
       {/* stats */}
