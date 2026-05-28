@@ -120,6 +120,48 @@ export default function ReporteConteo({ inventario }) {
     )
   }
 
+  // Export totalizado: 1 fila por producto, sumando todas las zonas.
+  const handleExportTotal = () => {
+    if (filtradas.length === 0) return
+    const map = new Map() // producto_id → { producto, total, zonas:Set }
+    for (const r of filtradas) {
+      const pid = r.producto?.id
+      if (pid == null) continue
+      let entry = map.get(pid)
+      if (!entry) {
+        entry = { producto: r.producto, total: 0, zonas: new Set() }
+        map.set(pid, entry)
+      }
+      entry.total += Number(r.cantidad) || 0
+      if (r.zona?.nombre) entry.zonas.add(r.zona.nombre)
+    }
+    const rowsX = [...map.values()]
+      .sort((a, b) => (a.producto?.nombre || '').localeCompare(b.producto?.nombre || ''))
+      .map(e => ({
+        codigo_barras: e.producto?.codigo_barras || '',
+        sku:           e.producto?.sku || '',
+        producto:      e.producto?.nombre || '',
+        variante:      e.producto?.variante || '',
+        total:         e.total,
+        num_zonas:     e.zonas.size,
+        zonas:         [...e.zonas].sort().join(', '),
+      }))
+    exportToXlsx(
+      rowsX,
+      [
+        { key: 'codigo_barras', label: 'Cód. Barras' },
+        { key: 'sku',           label: 'SKU' },
+        { key: 'producto',      label: 'Producto' },
+        { key: 'variante',      label: 'Variante' },
+        { key: 'total',         label: 'Total' },
+        { key: 'num_zonas',     label: 'N° zonas' },
+        { key: 'zonas',         label: 'Zonas' },
+      ],
+      `conteo_total_${inventario.nombre || 'inventario'}`.replace(/[^a-z0-9_-]+/gi, '_').toLowerCase(),
+      'Total por producto',
+    )
+  }
+
   if (!inventario) {
     return (
       <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14, background: '#fff', border: '1px solid #E5E7EB' }}>
@@ -146,10 +188,20 @@ export default function ReporteConteo({ inventario }) {
         <button
           onClick={handleExport}
           disabled={loading || filtradas.length === 0}
-          style={{ padding: '0 18px', height: 42, background: filtradas.length === 0 || loading ? '#E5E7EB' : G, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: filtradas.length === 0 || loading ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8 }}
+          title="Detalle: 1 fila por zona/usuario"
+          style={{ padding: '0 14px', height: 42, background: filtradas.length === 0 || loading ? '#E5E7EB' : G, border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, cursor: filtradas.length === 0 || loading ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}
         >
-          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
-          Exportar Excel
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
+          Excel · Detalle
+        </button>
+        <button
+          onClick={handleExportTotal}
+          disabled={loading || filtradas.length === 0}
+          title="Totalizado: 1 fila por producto, sumando todas las zonas"
+          style={{ padding: '0 14px', height: 42, background: filtradas.length === 0 || loading ? '#E5E7EB' : '#fff', border: `2px solid ${filtradas.length === 0 || loading ? '#E5E7EB' : G}`, color: filtradas.length === 0 || loading ? '#9CA3AF' : G, fontWeight: 700, fontSize: 12, cursor: filtradas.length === 0 || loading ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M3 3h18v18H3z M3 9h18 M9 21V9"/></svg>
+          Excel · Totalizado
         </button>
       </div>
 
