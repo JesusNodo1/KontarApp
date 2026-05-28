@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { B, BL, G, GL } from '../../constants/theme'
-import { enviarAjustesInventario, enviarAjustesInventarioDemo, getAjustesEnviadosIds } from '../../services/apiExternaService'
+import { enviarAjustesInventario, enviarAjustesInventarioDemo, getAjustesEnviadosIds, getAjustesEnviadosDetalle } from '../../services/apiExternaService'
 import { useAuth } from '../../context/AuthContext'
 import Spinner from '../../components/Spinner'
 
@@ -29,15 +29,23 @@ export default function EnvioAjustesPanel({ inventario, data }) {
   const [errorMsg,    setErrorMsg]    = useState('')
   const [log,         setLog]         = useState([])    // [{producto, mensaje, ok}]
   const [demo,        setDemo]        = useState(DEMO_DEFAULT)
+  const [seleccion,   setSeleccion]   = useState(() => new Set()) // Set<producto_id>
+  const [openLista,   setOpenLista]   = useState(false)
+  const [historial,   setHistorial]   = useState([])    // [{producto_id, producto:{nombre,...}, conteo, sistema, mensaje, ok, sent_at}]
+  const [openHist,    setOpenHist]    = useState(false)
 
   // Carga inicial de IDs ya enviados (en demo no tocamos la DB → set vacío)
   const recargarEnviados = async () => {
     if (!cerrado || !apiHabilitada) return
-    if (demo) { setEnviadosIds(new Set()); return }
+    if (demo) { setEnviadosIds(new Set()); setHistorial([]); return }
     setLoadingIds(true); setErrorMsg('')
     try {
-      const set = await getAjustesEnviadosIds(inventario.id)
+      const [set, det] = await Promise.all([
+        getAjustesEnviadosIds(inventario.id),
+        getAjustesEnviadosDetalle(inventario.id),
+      ])
       setEnviadosIds(set)
+      setHistorial(det)
     } catch (e) {
       setErrorMsg(e.message)
     } finally {
@@ -52,33 +60,61 @@ export default function EnvioAjustesPanel({ inventario, data }) {
     return data.filas.filter(f => (Number(f.diferencia) || 0) !== 0 || f.estado === 'pendiente')
   }, [data])
 
+  // Filas pendientes (todavía no enviadas)
+  const filasPendientes = useMemo(() => {
+    if (!enviadosIds) return filasAjustables
+    return filasAjustables.filter(f => !enviadosIds.has(Number(f.producto_id)))
+  }, [filasAjustables, enviadosIds])
+
   const totalAjustables = filasAjustables.length
-  const yaEnviados = enviadosIds ? filasAjustables.filter(f => enviadosIds.has(Number(f.producto_id))).length : 0
-  const pendientes = totalAjustables - yaEnviados
+  const yaEnviados = totalAjustables - filasPendientes.length
+  const pendientes = filasPendientes.length
+
+  // Si cambian las filas (por filtro nuevo, recarga, etc.), saneamos la selección
+  useEffect(() => {
+    setSeleccion(prev => {
+      const valid = new Set(filasPendientes.map(f => Number(f.producto_id)))
+      const next = new Set()
+      for (const id of prev) if (valid.has(id)) next.add(id)
+      return next
+    })
+  }, [filasPendientes])
+
+  const seleccionados = seleccion.size
+  const aEnviar = seleccionados > 0 ? seleccionados : pendientes
+  const modoSel  = seleccionados > 0  // si hay marcados, mandamos solo esos
 
   const handleEnviar = async () => {
     if (!data) return
-    if (pendientes === 0) return
+    if (aEnviar === 0) return
+
+    // Si hay selección, armamos un subset de `data` con sólo esas filas.
+    // Si no hay selección, mandamos el `data` original (la función filtra por dif y por enviados).
+    const subset = modoSel
+      ? { ...data, filas: data.filas.filter(f => seleccion.has(Number(f.producto_id))) }
+      : data
+
     const msgConfirm = demo
-      ? `MODO DEMO: simular envío de ${pendientes} ajuste(s)? No se llama al ERP ni se inserta en la base.`
-      : `Enviar ${pendientes} ajuste(s) al ERP? Esta operación no se puede revertir desde la app.`
+      ? `MODO DEMO: simular envío de ${aEnviar} ajuste(s)${modoSel ? ' seleccionado(s)' : ''}? No se llama al ERP ni se inserta en la base.`
+      : `Enviar ${aEnviar} ajuste(s)${modoSel ? ' seleccionado(s)' : ''} al ERP? Esta operación no se puede revertir desde la app.`
     if (!confirm(msgConfirm)) return
 
     setEnviando(true); setErrorMsg(''); setLog([]); setResumen(null)
-    setProgress({ index: 0, total: pendientes, exitos: 0, errores: 0, omitidos: 0 })
+    setProgress({ index: 0, total: aEnviar, exitos: 0, errores: 0, omitidos: 0 })
 
     const fn = demo ? enviarAjustesInventarioDemo : enviarAjustesInventario
 
     try {
       const r = await fn({
         inventario,
-        diferencias: data,
+        diferencias: subset,
         onProgress: (p) => {
           setProgress(p)
           setLog(prev => [...prev, { producto: p.ultimoProducto, mensaje: p.ultimoMensaje, ok: p.ok }])
         },
       })
       setResumen(r)
+      setSeleccion(new Set())
       if (!demo) await recargarEnviados()
     } catch (e) {
       setErrorMsg(e.message)
@@ -86,6 +122,14 @@ export default function EnvioAjustesPanel({ inventario, data }) {
       setEnviando(false)
     }
   }
+
+  const toggleProd = (pid) => setSeleccion(prev => {
+    const s = new Set(prev)
+    if (s.has(pid)) s.delete(pid); else s.add(pid)
+    return s
+  })
+  const selTodos    = () => setSeleccion(new Set(filasPendientes.map(f => Number(f.producto_id))))
+  const selNinguno  = () => setSeleccion(new Set())
 
   // ── Casos en los que el panel no se muestra o muestra estados pasivos ──
   if (!apiHabilitada) return null
@@ -128,21 +172,114 @@ export default function EnvioAjustesPanel({ inventario, data }) {
         </div>
         <button
           onClick={handleEnviar}
-          disabled={enviando || pendientes === 0}
+          disabled={enviando || aEnviar === 0}
           style={{
             height: 38, padding: '0 16px',
-            background: (enviando || pendientes === 0) ? '#F3F4F6' : G,
+            background: (enviando || aEnviar === 0) ? '#F3F4F6' : G,
             border: 'none',
-            color: (enviando || pendientes === 0) ? '#9CA3AF' : '#fff',
+            color: (enviando || aEnviar === 0) ? '#9CA3AF' : '#fff',
             fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', textTransform: 'uppercase',
-            cursor: (enviando || pendientes === 0) ? 'not-allowed' : 'pointer',
+            cursor: (enviando || aEnviar === 0) ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
           }}
         >
           {enviando ? <><Spinner /> Enviando ({progress?.index ?? 0}/{progress?.total ?? 0})…</> :
-           pendientes === 0 ? '✓ Todo enviado' : `Enviar ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`}
+           pendientes === 0 ? '✓ Todo enviado' :
+           modoSel ? `Enviar ${seleccionados} seleccionado${seleccionados !== 1 ? 's' : ''}` :
+                     `Enviar ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`}
         </button>
       </div>
+
+      {/* Selector de productos pendientes */}
+      {pendientes > 0 && !enviando && (
+        <div style={{ marginTop: 12, border: '1px solid #E5E7EB', background: '#FAFAFA' }}>
+          <button
+            onClick={() => setOpenLista(o => !o)}
+            style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#374151', fontWeight: 600 }}
+          >
+            <span>
+              {openLista ? '▾' : '▸'} Seleccionar productos específicos
+              {seleccionados > 0 && <span style={{ color: G, marginLeft: 8 }}>· {seleccionados} marcado{seleccionados !== 1 ? 's' : ''}</span>}
+            </span>
+            <span style={{ color: '#9CA3AF', fontSize: 11, fontWeight: 500 }}>
+              {seleccionados === 0 ? 'sin selección · se mandarán todos' : 'sólo los marcados'}
+            </span>
+          </button>
+
+          {openLista && (
+            <div style={{ borderTop: '1px solid #E5E7EB', background: '#fff' }}>
+              <div style={{ padding: '6px 12px', borderBottom: '1px solid #F3F4F6', display: 'flex', gap: 10, fontSize: 11 }}>
+                <button onClick={selTodos}   style={{ background: 'transparent', border: 'none', color: B, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Seleccionar todos</button>
+                <button onClick={selNinguno} style={{ background: 'transparent', border: 'none', color: '#6B7280', fontWeight: 600, cursor: 'pointer', padding: 0 }}>Ninguno</button>
+              </div>
+              <div className="scroll-pc" style={{ maxHeight: 280, overflowY: 'auto', fontSize: 12 }}>
+                {filasPendientes.map(f => {
+                  const pid = Number(f.producto_id)
+                  const checked = seleccion.has(pid)
+                  const dif = Number(f.diferencia) || 0
+                  const difColor = dif === 0 ? '#6B7280' : dif > 0 ? '#92400E' : '#DC2626'
+                  return (
+                    <label key={pid} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 60px 60px 64px', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: checked ? BL : '#fff' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleProd(pid)} style={{ cursor: 'pointer' }} />
+                      <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                        <div style={{ fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.nombre}{f.variante ? <span style={{ color: '#6B7280', fontWeight: 400 }}> · {f.variante}</span> : null}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', fontFamily: "'DM Mono',monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.codigo_barras || f.sku || '—'}
+                          {!f.id_externo && <span style={{ color: '#DC2626', marginLeft: 6 }}>· sin id_externo</span>}
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", color: '#6B7280', textAlign: 'right' }}>{f.teorico}</div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", color: '#111827', textAlign: 'right' }}>{f.contado}</div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, textAlign: 'right', color: difColor }}>
+                        {dif > 0 ? '+' : ''}{dif}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Historial de ya enviados — sólo si hay alguno y no estamos en demo */}
+      {!demo && historial.length > 0 && !enviando && (
+        <div style={{ marginTop: 12, border: '1px solid #E5E7EB', background: '#FAFAFA' }}>
+          <button
+            onClick={() => setOpenHist(o => !o)}
+            style={{ width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#374151', fontWeight: 600 }}
+          >
+            <span>{openHist ? '▾' : '▸'} Historial de ajustes enviados <span style={{ color: G }}>· {historial.length}</span></span>
+            <span style={{ color: '#9CA3AF', fontSize: 11, fontWeight: 500 }}>no se reenvían</span>
+          </button>
+          {openHist && (
+            <div className="scroll-pc" style={{ borderTop: '1px solid #E5E7EB', background: '#fff', maxHeight: 280, overflowY: 'auto', fontSize: 11 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 56px 56px 1fr', padding: '6px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF' }}>
+                <div>Fecha</div><div>Producto</div><div style={{ textAlign: 'right' }}>Cont.</div><div style={{ textAlign: 'right' }}>Teor.</div><div>Mensaje</div>
+              </div>
+              {historial.map((h, i) => (
+                <div key={h.producto_id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 56px 56px 1fr', padding: '6px 12px', borderBottom: i < historial.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", color: '#6B7280' }}>{h.sent_at ? new Date(h.sent_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+                  <div style={{ paddingLeft: 6, minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {h.producto?.nombre || `Producto ${h.producto_id}`}
+                      {h.producto?.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {h.producto.variante}</span>}
+                    </div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", color: '#9CA3AF', fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.producto?.codigo_barras || h.producto?.sku || '—'}</div>
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", color: '#111827', textAlign: 'right' }}>{h.conteo}</div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", color: '#6B7280', textAlign: 'right' }}>{h.sistema}</div>
+                  <div style={{ fontSize: 10, color: h.ok ? '#065F46' : '#DC2626', paddingLeft: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {h.ok ? '✓' : '✗'} {h.mensaje || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {errorMsg && (
         <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '8px 12px', marginTop: 12, fontSize: 12, color: '#DC2626' }}>✕ {errorMsg}</div>

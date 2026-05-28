@@ -246,6 +246,20 @@ export async function getAjustesEnviadosIds(inventario_id) {
 }
 
 /**
+ * Detalle completo del historial de ajustes enviados, con info del producto.
+ * Más recientes primero.
+ */
+export async function getAjustesEnviadosDetalle(inventario_id) {
+  const { data, error } = await supabase
+    .from('ajustes_enviados')
+    .select('producto_id, conteo, sistema, mensaje, ok, sent_at, producto:producto_id(nombre, variante, sku, codigo_barras)')
+    .eq('inventario_id', inventario_id)
+    .order('sent_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data || []
+}
+
+/**
  * Envía a `KONTAR_AJUSTE` todos los productos del inventario con diferencia o pendientes,
  * saltando los ya enviados. Por cada éxito inserta en `ajustes_enviados` para que no se
  * reenvíe nunca más. Por cada error sigue con el siguiente (sin marcar como enviado).
