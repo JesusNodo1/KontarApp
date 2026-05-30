@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { utils as xlsxUtils, writeFile as xlsxWriteFile } from 'xlsx'
 import { B, BL, G, GL } from '../../constants/theme'
 import { getDiferencias, getStockTeoricoStatus, getSucursales, getDepositos } from '../../services/adminService'
 import { cargarStockTeoricoDesdeAPI } from '../../services/apiExternaService'
@@ -7,6 +8,17 @@ import Spinner from '../../components/Spinner'
 import { useIsNarrow } from '../../hooks/useIsNarrow'
 
 const norm = s => (s || '').toString().toLowerCase().trim()
+
+// Guaraníes sin decimales, con separador de miles (48.250.000)
+const fmtGs = n => (Math.round(Number(n) || 0)).toLocaleString('es-PY')
+
+// Columnas de la tabla desktop (incluye Costo unit. y Dif. valorizada)
+const GRID_COLS = '92px 1fr 62px 62px 66px 92px 104px 84px'
+
+const kpiBox = { background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}`, padding: '12px 14px' }
+const kpiLbl = { fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 6 }
+const kpiVal = { fontFamily: "'DM Mono',monospace", fontSize: 22, fontWeight: 700, lineHeight: 1.1 }
+const kpiSub = { fontSize: 11, color: '#9CA3AF', marginTop: 4 }
 
 const ESTADO_LABEL = {
   'ok':           { label: 'OK',          bg: GL,        color: '#065F46' },
@@ -121,6 +133,26 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     }
   }
 
+  const handleExportExcel = () => {
+    if (!data?.filas?.length) return
+    const rows = data.filas.map(f => ({
+      'Código de barras': f.codigo_barras || '',
+      'Producto':         f.nombre || '',
+      'Clasificación':    f.variante || '',
+      'Contado':          Number(f.contado) || 0,
+      'Teórico':          Number(f.teorico) || 0,
+      'Dif. uds':         Number(f.diferencia) || 0,
+      'Costo unit.':      f.costo != null ? Number(f.costo) : '',
+      'Dif. valorizada':  f.costo != null ? (Number(f.diferencia) || 0) * Number(f.costo) : '',
+      'Estado':           ESTADO_LABEL[f.estado]?.label || f.estado,
+    }))
+    const ws = xlsxUtils.json_to_sheet(rows)
+    const wb = xlsxUtils.book_new()
+    xlsxUtils.book_append_sheet(wb, ws, 'Resultados')
+    const nombre = (inventario.nombre || 'inventario').replace(/[^\w-]+/g, '_').slice(0, 40)
+    xlsxWriteFile(wb, `Resultados_${nombre}.xlsx`)
+  }
+
   const variantes = useMemo(() => {
     if (!data) return []
     const set = new Set()
@@ -198,37 +230,18 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     </div>
   )
 
-  // ── Sin teórico cargado: pantalla de carga inicial ──
+  // ── Sin teórico cargado: el snapshot debió cargarse al crear el inventario ──
   if (!status.cargado) {
     return (
-      <div style={{ padding: '24px 16px', textAlign: 'center', background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }}>
-          Aún no se cargó el stock teórico de este inventario.
+      <div style={{ padding: '24px 16px', textAlign: 'center', background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+        <div style={{ fontSize: 13, color: '#92400E', marginBottom: 6, fontWeight: 600 }}>
+          Este inventario no tiene stock teórico cargado.
         </div>
-        {apiHabilitada ? (
-          <>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-              {renderSelectorOrigen(true)}
-            </div>
-            <button
-              onClick={handleCargarApi}
-              disabled={cargando || !depositoSel}
-              style={{ padding: '10px 18px', background: (cargando || !depositoSel) ? '#F3F4F6' : G, border: 'none', color: (cargando || !depositoSel) ? '#9CA3AF' : '#fff', fontWeight: 700, fontSize: 13, cursor: (cargando || !depositoSel) ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-              title={!depositoSel ? 'Elegí un depósito para comparar' : ''}
-            >
-              {cargando ? <><Spinner /> Cargando...</> : 'Cargar desde API'}
-            </button>
-            {!depositoSel && (
-              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>
-                Elegí el depósito a comparar contra el conteo.
-              </div>
-            )}
-          </>
-        ) : (
-          <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
-            Este cliente no tiene API habilitada. Subir CSV/Excel — feature pendiente.
-          </div>
-        )}
+        <div style={{ fontSize: 12, color: '#92400E' }}>
+          {apiHabilitada
+            ? 'El snapshot del teórico debió generarse automáticamente al crear el inventario. Es posible que la llamada a la API haya fallado en ese momento. Contactá soporte para regenerarlo manualmente.'
+            : 'Este cliente no tiene API habilitada. Subir CSV/Excel — feature pendiente.'}
+        </div>
         {errorMsg && <div style={{ marginTop: 12, color: '#DC2626', fontSize: 12 }}>✕ {errorMsg}</div>}
       </div>
     )
@@ -238,14 +251,46 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   const depSel       = depositos.find(d => d.id === depositoSel)
   const esOrigenOtro = depositoSel && inventario.deposito_id && depositoSel !== inventario.deposito_id
 
+  // ── Valorización (Resultados) ──
+  const difValorizada = (r.valorizadaContado || 0) - (r.valorizadaTeorico || 0)
+  const pctValor = r.valorizadaTeorico > 0 ? (Math.abs(difValorizada) / r.valorizadaTeorico) * 100 : null
+  const hayCosto = (r.conCosto || 0) > 0
+
   return (
     <div>
       {/* mensajes */}
       {errorMsg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#DC2626' }}>✕ {errorMsg}</div>}
       {okMsg && <div style={{ background: GL, border: '1px solid #6EE7B7', padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#065F46' }}>{okMsg}</div>}
-      {esOrigenOtro && (
-        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400E' }}>
-          ⚠ Comparando contra <b>{depSel?.nombre}</b> (distinto del depósito asignado al inventario "{inventario.deposito || '—'}"). Clic en <b>Recargar API</b> para aplicar.
+
+      {/* KPIs valorizadas */}
+      {hayCosto ? (
+        <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
+          <div style={kpiBox}>
+            <div style={kpiLbl}>Existencia valorizada</div>
+            <div style={{ ...kpiVal, color: G }}>Gs {fmtGs(r.valorizadaContado)}</div>
+            <div style={kpiSub}>lo contado, a costo</div>
+          </div>
+          <div style={kpiBox}>
+            <div style={kpiLbl}>Existencia teórica</div>
+            <div style={{ ...kpiVal, color: '#111827' }}>Gs {fmtGs(r.valorizadaTeorico)}</div>
+            <div style={kpiSub}>según sistema</div>
+          </div>
+          <div style={kpiBox}>
+            <div style={kpiLbl}>Diferencia</div>
+            <div style={{ ...kpiVal, color: difValorizada < 0 ? '#DC2626' : difValorizada > 0 ? '#92400E' : '#065F46' }}>
+              {difValorizada > 0 ? '+' : ''}Gs {fmtGs(difValorizada)}
+            </div>
+            <div style={kpiSub}>{difValorizada < 0 ? 'faltante valorizado' : difValorizada > 0 ? 'sobrante valorizado' : 'sin diferencia'}</div>
+          </div>
+          <div style={kpiBox}>
+            <div style={kpiLbl}>% de diferencia</div>
+            <div style={{ ...kpiVal, color: B }}>{pctValor != null ? `${pctValor.toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : '—'}</div>
+            <div style={kpiSub}>{pctValor != null ? `eficiencia: ${(100 - pctValor).toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : ''}</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#92400E' }}>
+          La valorización se activa cuando el teórico tiene costo. Sincronizá productos (con la columna <b>costo</b>) y creá el inventario de nuevo para capturar el costo en el snapshot.
         </div>
       )}
 
@@ -287,16 +332,15 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
           <option value="">Todas las variantes</option>
           {variantes.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
-        {apiHabilitada && renderSelectorOrigen(true)}
-        {apiHabilitada && (
-          <button
-            onClick={handleCargarApi} disabled={cargando || !depositoSel}
-            style={{ height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: (cargando || !depositoSel) ? '#9CA3AF' : G, fontWeight: 700, fontSize: 12, cursor: (cargando || !depositoSel) ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
-            title={!depositoSel ? 'Elegí un depósito' : 'Volver a cargar el stock desde la API (usa la sucursal/depósito elegidos)'}
-          >
-            {cargando ? <><Spinner /> Recargando...</> : '↻ Recargar API'}
-          </button>
-        )}
+        <button
+          onClick={handleExportExcel}
+          disabled={!data?.filas?.length}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: G, fontWeight: 700, fontSize: 12, cursor: data?.filas?.length ? 'pointer' : 'not-allowed', letterSpacing: '0.03em', textTransform: 'uppercase' }}
+          title="Exportar el detalle a Excel"
+        >
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
+          Exportar Excel
+        </button>
         {extraToolbar}
       </div>
 
@@ -324,9 +368,9 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
       <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
         <div className="scroll-pc" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F3F4F6', scrollBehavior: 'smooth' }}>
         {!isNarrow && (
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
-            {['Código', 'Producto', 'Teórico', 'Contado', 'Diferencia', 'Estado'].map((h, i) => (
-              <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 2 && i <= 4 ? 'right' : 'left' }}>{h}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: GRID_COLS, padding: '8px 12px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 2 }}>
+            {['Código', 'Producto', 'Teórico', 'Contado', 'Dif. uds', 'Costo unit.', 'Dif. valorizada', 'Estado'].map((h, i) => (
+              <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i >= 2 && i <= 6 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
         )}
@@ -359,10 +403,16 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
                   <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: difColor, fontSize: 14 }}>{f.diferencia > 0 ? '+' : ''}{f.diferencia}</div>
                 </div>
               </div>
+              {f.costo != null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #F3F4F6', fontSize: 12 }}>
+                  <span style={{ color: '#9CA3AF' }}>Costo unit. <b style={{ color: '#374151', fontFamily: "'DM Mono',monospace" }}>Gs {fmtGs(f.costo)}</b></span>
+                  <span style={{ color: difColor, fontWeight: 700, fontFamily: "'DM Mono',monospace" }}>{f.diferencia > 0 ? '+' : ''}Gs {fmtGs((Number(f.diferencia) || 0) * Number(f.costo))}</span>
+                </div>
+              )}
             </div>
           ) : (
             // ── Tabla desktop ──
-            <div key={f.producto_id} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 70px 70px 80px 90px', padding: '9px 12px', borderBottom: i < paginadas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+            <div key={f.producto_id} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, padding: '9px 12px', borderBottom: i < paginadas.length - 1 ? '1px solid #F3F4F6' : 'none', alignItems: 'center', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 5px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.codigo_barras || '—'}</div>
               <div style={{ paddingLeft: 8, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nombre}{f.variante && <span style={{ color: '#6B7280', fontWeight: 400 }}> · {f.variante}</span>}</div>
@@ -371,6 +421,10 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#111827', textAlign: 'right' }}>{f.contado}</div>
               <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, textAlign: 'right', color: difColor }}>
                 {f.diferencia > 0 ? '+' : ''}{f.diferencia}
+              </div>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: '#6B7280', textAlign: 'right' }}>{f.costo != null ? fmtGs(f.costo) : '—'}</div>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, textAlign: 'right', color: f.costo == null ? '#9CA3AF' : difColor }}>
+                {f.costo != null ? `${f.diferencia > 0 ? '+' : ''}${fmtGs((Number(f.diferencia) || 0) * Number(f.costo))}` : '—'}
               </div>
               <div>
                 <span style={{ background: e.bg, color: e.color, padding: '2px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{e.label}</span>

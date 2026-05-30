@@ -43,21 +43,83 @@ export async function getInventarios() {
   return data || []
 }
 
-export async function crearInventario({ nombre, sucursal, deposito, deposito_id, responsable, fecha_inicio, fecha_limite }) {
+export async function crearInventario({ nombre, sucursal, deposito, deposito_id, responsable, fecha_inicio, fecha_limite, productoIds = [] }) {
   const toISO = d => {
     if (!d) return null
     if (d.includes('/')) { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd}` }
     return d
   }
   const { data: { user } } = await supabase.auth.getUser()
-  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id, rol').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
+
+  // Bloquear si la sucursal ya tiene un inventario abierto.
+  const { data: abiertoPrevio } = await supabase
+    .from('inventarios')
+    .select('id, nombre')
+    .eq('cliente_id', perfil.cliente_id)
+    .eq('estado', 'abierto')
+    .eq('sucursal', sucursal)
+    .maybeSingle()
+  if (abiertoPrevio) {
+    throw new Error(`La sucursal "${sucursal}" ya tiene un inventario abierto: "${abiertoPrevio.nombre}". Cerralo antes de crear uno nuevo.`)
+  }
+
+  const { data: cli } = await supabase.from('clientes').select('fuente_sync').eq('id', perfil.cliente_id).maybeSingle()
+
   const { data, error } = await supabase
     .from('inventarios')
     .insert({ nombre, sucursal, deposito, deposito_id: deposito_id || null, responsable, cliente_id: perfil.cliente_id, fecha_inicio: toISO(fecha_inicio), fecha_limite: toISO(fecha_limite) })
     .select().single()
   if (error) throw new Error(error.message)
+
+  // Guardar el subconjunto de productos elegido en el wizard.
+  // Si algo falla acá, borramos el inventario recién creado para no dejar huérfanos.
+  const ids = [...new Set((productoIds || []).map(Number).filter(Boolean))]
+  if (ids.length) {
+    try {
+      const filas = ids.map(pid => ({ inventario_id: data.id, producto_id: pid, cliente_id: perfil.cliente_id }))
+      const CHUNK = 500
+      for (let i = 0; i < filas.length; i += CHUNK) {
+        const { error: e2 } = await supabase.from('inventario_productos').insert(filas.slice(i, i + CHUNK))
+        if (e2) throw new Error(e2.message)
+      }
+    } catch (e) {
+      await supabase.from('inventarios').delete().eq('id', data.id)
+      throw new Error(`No se pudo guardar la selección de productos: ${e.message}`)
+    }
+  }
+
+  // Snapshot inmediato del stock teórico desde la API (sólo si cliente con API habilitada y tiene depósito).
+  // El created_at de inventario_stock_teorico queda como timestamp del momento del inicio del inventario,
+  // y se usa después para mandar la fecha/hora del ajuste al ERP. NO se permite recargar.
+  // Se acota al subconjunto elegido (productoIds) para que teórico/diferencias reflejen sólo eso.
+  if (cli?.fuente_sync === 'api' && deposito_id) {
+    try {
+      // Import dinámico para no introducir ciclo entre adminService y apiExternaService.
+      const { cargarStockTeoricoDesdeAPI } = await import('./apiExternaService')
+      await cargarStockTeoricoDesdeAPI(data.id, { depositoId: deposito_id, productoIds: ids })
+    } catch (e) {
+      // No fatal: el inventario queda creado igual. Que el admin vea el error en consola.
+      console.warn('[crearInventario] No se pudo cargar el teórico al crear:', e?.message)
+    }
+  }
+
   return data
+}
+
+/**
+ * Categorías de producto para el wizard (paso 2 "Por categoría").
+ * Lee de la tabla local `categorias` si existe (poblada por KONTAR_CATEGORIAS).
+ * Si la tabla aún no existe / no hay datos, devuelve [] sin romper.
+ */
+export async function getCategorias() {
+  const { data, error } = await supabase
+    .from('categorias')
+    .select('id, nombre')
+    .order('nombre')
+  if (error) return []
+  return data || []
 }
 
 export async function cerrarInventario(id) {
@@ -284,6 +346,10 @@ export async function getDiferencias(inventario_id) {
       valorNeto:     filas.reduce((s, f) => s + (f.valor || 0), 0),
       totalContado:  filas.reduce((s, f) => s + (Number(f.contado) || 0), 0),
       totalTeorico:  filas.reduce((s, f) => s + (Number(f.teorico) || 0), 0),
+      // ── Valorización (requiere costo en inventario_stock_teorico.costo_unitario) ──
+      valorizadaContado: filas.reduce((s, f) => s + (f.costo != null ? f.contado * f.costo : 0), 0),
+      valorizadaTeorico: filas.reduce((s, f) => s + (f.costo != null ? f.teorico * f.costo : 0), 0),
+      conCosto:          filas.filter(f => f.costo != null).length,
     },
   }
 }

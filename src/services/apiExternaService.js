@@ -93,15 +93,21 @@ export async function sincronizarProductos() {
   const cliente_id = await _getClienteId()
   const filas = await _callReporte('KONTAR_PRODUCTOS')
 
-  const rows = filas.map(r => ({
-    cliente_id,
-    id_externo:    String(r.ID),
-    codigo_barras: String(r['Código de barras'] || '').trim(),
-    nombre:        String(r.Nombre || '').trim(),
-    sku:           String(r.SKU || '').trim() || null,
-    variante:      String(r.Variante || '').trim(),
-    activo:        toBool(r.Activo),
-  })).filter(r => r.id_externo && r.codigo_barras && r.nombre)
+  const rows = filas.map(r => {
+    const costoNum = Number(r.Costo)
+    return {
+      cliente_id,
+      id_externo:    String(r.ID),
+      codigo_barras: String(r['Código de barras'] || '').trim(),
+      nombre:        String(r.Nombre || '').trim(),
+      sku:           String(r.SKU || '').trim() || null,
+      variante:      String(r.Variante || '').trim(),   // = Clasificación (agrupador del wizard)
+      marca:         String(r.Marca || '').trim() || null,
+      modelo:        String(r.Modelo || '').trim() || null,
+      costo:         Number.isFinite(costoNum) ? costoNum : null,
+      activo:        toBool(r.Activo),
+    }
+  }).filter(r => r.id_externo && r.codigo_barras && r.nombre)
 
   let total = 0
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -122,13 +128,67 @@ export async function obtenerStockExterno() {
 }
 
 /**
+ * Productos que existen en un depósito según la API (KONTAR_STOCK filtrado por
+ * el id_externo del depósito), resueltos a los productos locales. Es el universo
+ * que se ofrece en el paso 2 del wizard: solo lo que vive en ese depósito.
+ * Devuelve [{ id, nombre, variante, sku, codigo_barras, marca, costo, existencia }].
+ */
+export async function getProductosDeDeposito(deposito_id) {
+  const cliente_id = await _getClienteId()
+
+  const { data: dep } = await supabase
+    .from('depositos')
+    .select('id, id_externo, nombre')
+    .eq('id', deposito_id)
+    .eq('cliente_id', cliente_id)
+    .maybeSingle()
+  if (!dep) throw new Error('Depósito no encontrado o no pertenece al cliente.')
+  if (!dep.id_externo) throw new Error('El depósito no está vinculado a un ID externo. Sincronizá depósitos desde la API primero.')
+
+  // Existencia por producto (id_externo) en ese depósito.
+  const stockCrudo = await obtenerStockExterno()
+  const idDep = String(dep.id_externo)
+  const existPorProd = new Map()
+  for (const r of stockCrudo) {
+    if (String(r.IDDeposito) !== idDep) continue
+    existPorProd.set(String(r.IDProducto), Number(r.Existencia) || 0)
+  }
+  if (existPorProd.size === 0) return []
+
+  // Productos locales del cliente (paginado), filtrados a los que están en el depósito.
+  const PAGE = 1000
+  let prods = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id, id_externo, nombre, variante, sku, codigo_barras, activo')
+      .eq('cliente_id', cliente_id)
+      .not('id_externo', 'is', null)
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) break
+    prods = prods.concat(data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  return prods
+    .filter(p => p.activo !== false && existPorProd.has(String(p.id_externo)))
+    .map(p => ({ ...p, existencia: existPorProd.get(String(p.id_externo)) }))
+    .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+}
+
+/**
  * Carga el stock teórico de un inventario desde la API externa.
  * Por defecto usa el deposito_id del inventario; opts.depositoId permite comparar
  * contra otro depósito (mismo cliente). Hace UPSERT en inventario_stock_teorico.
  */
 export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
   const cliente_id = await _getClienteId()
-  const { depositoId: depositoIdOverride } = opts
+  const { depositoId: depositoIdOverride, productoIds } = opts
+  // Si se pasa un subconjunto de productos, el teórico se acota sólo a esos.
+  const subsetSet = productoIds?.length ? new Set(productoIds.map(Number)) : null
 
   let deposito_id = depositoIdOverride
   if (!deposito_id) {
@@ -168,7 +228,7 @@ export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
   while (true) {
     const { data, error } = await supabase
       .from('productos')
-      .select('id, id_externo')
+      .select('id, id_externo, costo')
       .eq('cliente_id', cliente_id)
       .not('id_externo', 'is', null)
       .range(from, from + PAGE - 1)
@@ -178,18 +238,22 @@ export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
     if (data.length < PAGE) break
     from += PAGE
   }
-  const prodMap = new Map(prods.map(p => [String(p.id_externo), p.id]))
+  const prodMap = new Map(prods.map(p => [String(p.id_externo), p]))
 
   let sinProducto = 0
+  let fueraDeSubset = 0
   const rows = filasDeposito
     .map(r => {
-      const producto_id = prodMap.get(String(r.IDProducto))
-      if (!producto_id) { sinProducto++; return null }
+      const prod = prodMap.get(String(r.IDProducto))
+      if (!prod) { sinProducto++; return null }
+      if (subsetSet && !subsetSet.has(Number(prod.id))) { fueraDeSubset++; return null }
+      const costoNum = Number(prod.costo)
       return {
         cliente_id,
         inventario_id,
-        producto_id,
+        producto_id: prod.id,
         cantidad: Number(r.Existencia) || 0,
+        costo_unitario: Number.isFinite(costoNum) ? costoNum : null,
         fuente: 'api',
       }
     })
@@ -209,7 +273,7 @@ export async function cargarStockTeoricoDesdeAPI(inventario_id, opts = {}) {
     total += lote.length
   }
 
-  return { total, sinProducto, deposito: dep.id_externo, depositoNombre: dep.nombre, depositoId: dep.id }
+  return { total, sinProducto, fueraDeSubset, deposito: dep.id_externo, depositoNombre: dep.nombre, depositoId: dep.id }
 }
 
 // ── Ajustes de stock al ERP (KONTAR_AJUSTE) ─────────────────
@@ -277,10 +341,11 @@ export async function enviarAjustesInventario({ inventario, diferencias, onProgr
   }
   const cliente_id = await _getClienteId()
 
-  // Resolver IDs externos de sucursal y depósito
+  // Resolver nombre + id_externo de sucursal y depósito
+  // (El SP del ERP recibe los nombres como strings, no los ids)
   const { data: dep, error: depErr } = await supabase
     .from('depositos')
-    .select('id, id_externo, sucursal_id')
+    .select('id, nombre, id_externo, sucursal_id')
     .eq('id', inventario.deposito_id)
     .eq('cliente_id', cliente_id)
     .maybeSingle()
@@ -290,7 +355,7 @@ export async function enviarAjustesInventario({ inventario, diferencias, onProgr
 
   const { data: suc, error: sucErr } = await supabase
     .from('sucursales')
-    .select('id, id_externo')
+    .select('id, nombre, id_externo')
     .eq('id', dep.sucursal_id)
     .maybeSingle()
   if (sucErr) throw new Error(sucErr.message)
@@ -306,8 +371,30 @@ export async function enviarAjustesInventario({ inventario, diferencias, onProgr
   const yaEnviados = await getAjustesEnviadosIds(inventario.id)
   const pendientes = todas.filter(f => !yaEnviados.has(Number(f.producto_id)))
 
-  // Fecha: usar la del inicio del inventario o hoy
-  const fecha = (inventario.fecha_inicio || new Date().toISOString().slice(0, 10)).slice(0, 10)
+  // Fecha+hora: usar el momento en que se importó el stock teórico desde la API.
+  // Esto es lo que el ERP necesita para timestampear el ajuste correctamente.
+  const { data: teoRow, error: teoErr } = await supabase
+    .from('inventario_stock_teorico')
+    .select('created_at')
+    .eq('inventario_id', inventario.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (teoErr)  throw new Error(teoErr.message)
+  if (!teoRow) throw new Error('No hay stock teórico cargado para este inventario.')
+
+  // Formatear como 'YYYYMMDD HH:MM:SS' en zona Paraguay (lo que entiende SQL Server)
+  const d = new Date(teoRow.created_at)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Asuncion',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour:  '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(d)
+  const get = k => (parts.find(p => p.type === k)?.value || '').padStart(2, '0')
+  let hh = get('hour')
+  if (hh === '24') hh = '00'  // Intl puede devolver 24 en lugar de 00
+  const fecha = `${get('year')}${get('month')}${get('day')} ${hh}:${get('minute')}:${get('second')}`
 
   let exitos = 0, errores = 0, omitidos = 0
   const total = pendientes.length
@@ -334,8 +421,8 @@ export async function enviarAjustesInventario({ inventario, diferencias, onProgr
         const { httpOk, json } = await _callConPayload({
           reporte:     'KONTAR_AJUSTE',
           fecha,
-          sucursal:    Number(suc.id_externo),
-          deposito:    Number(dep.id_externo),
+          sucursal:    String(suc.nombre || ''),
+          deposito:    String(dep.nombre || ''),
           codigo:      String(f.id_externo),
           codigoBarra: String(f.codigo_barras),
           conteo,

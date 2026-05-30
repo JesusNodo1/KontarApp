@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { B, BL, G, GL } from '../../constants/theme'
+import { B, BD, BL, G, GL } from '../../constants/theme'
 import {
-  getInventarios, crearInventario, cerrarInventario,
+  getInventarios, cerrarInventario,
   getInventarioStats, getInventarioDetalle, getZonaDetalle,
-  getSucursales, getDepositos, getAdmins,
+  getStockTeoricoStatus,
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
@@ -19,18 +19,25 @@ function fmtHora(iso) {
   return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+function fechaCorta(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+// Avance = productos contados / total teórico esperado. Sin teórico, un inventario
+// cerrado se considera 100% (ya no admite más conteo) y uno abierto 0%.
+function calcAvance(stat, estado) {
+  const total = stat?.teorico || 0
+  const cont  = stat?.productos || 0
+  if (total > 0) return Math.min(100, Math.round((cont / total) * 100))
+  return estado === 'cerrado' ? 100 : 0
+}
+
 export default function InventariosScreen() {
   const navigate = useNavigate()
   const [inventarios, setInventarios] = useState([])
-  const [stats,       setStats]       = useState({}) // { [invId]: { conteos, productos, unidades } }
+  const [stats,       setStats]       = useState({}) // { [invId]: { conteos, productos, unidades, teorico } }
   const [loading,     setLoading]     = useState(true)
-  const [showModal,   setShowModal]   = useState(false)
-  const [saving,      setSaving]      = useState(false)
-  const [errorMsg,    setErrorMsg]    = useState('')
-  const [form, setForm] = useState({ nombre: '', sucursal: '', deposito: '', deposito_id: null, responsable: '', fecha_inicio: '', fecha_limite: '' })
-  const [sucursales,  setSucursales]  = useState([])
-  const [depositos,   setDepositos]   = useState([])
-  const [admins,      setAdmins]      = useState([])
 
   // ── detalle inventario ────────────────────────────────────────
   const [detalle,        setDetalle]        = useState(null)
@@ -45,13 +52,16 @@ export default function InventariosScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [data, sucs, deps, adms] = await Promise.all([getInventarios(), getSucursales(), getDepositos(), getAdmins()])
+    const data = await getInventarios()
     setInventarios(data)
-    setSucursales(sucs)
-    setDepositos(deps)
-    setAdmins(adms)
     const entries = await Promise.all(
-      data.map(async inv => [inv.id, await getInventarioStats(inv.id).catch(() => ({ conteos: 0, productos: 0, unidades: 0 }))])
+      data.map(async inv => {
+        const [s, t] = await Promise.all([
+          getInventarioStats(inv.id).catch(() => ({ conteos: 0, productos: 0, unidades: 0 })),
+          getStockTeoricoStatus(inv.id).catch(() => ({ cargado: false, total: 0 })),
+        ])
+        return [inv.id, { ...s, teorico: t.total }]
+      })
     )
     setStats(Object.fromEntries(entries))
     setLoading(false)
@@ -86,30 +96,6 @@ export default function InventariosScreen() {
     }
   }
 
-  const handleCrear = async e => {
-    e.preventDefault()
-    if (!form.nombre || !form.sucursal) { setErrorMsg('Nombre y sucursal son obligatorios.'); return }
-
-    // Bloquear si ya hay un inventario abierto para esa sucursal
-    const yaAbierto = inventarios.find(i => i.estado === 'abierto' && i.sucursal === form.sucursal)
-    if (yaAbierto) {
-      setErrorMsg(`La sucursal "${form.sucursal}" ya tiene un inventario abierto: "${yaAbierto.nombre}". Cerralo antes de crear uno nuevo.`)
-      return
-    }
-
-    setSaving(true); setErrorMsg('')
-    try {
-      await crearInventario(form)
-      setShowModal(false)
-      setForm({ nombre: '', sucursal: '', deposito: '', deposito_id: null, responsable: '', fecha_inicio: '', fecha_limite: '' })
-      await loadData()
-    } catch (e) {
-      setErrorMsg(e.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleCerrar = async (id) => {
     if (detalleData) {
       const zonasAbiertas = detalleData.zonas.filter(z => !z.finalizada)
@@ -132,72 +118,111 @@ export default function InventariosScreen() {
     <div style={{ padding: '24px 20px', maxWidth: 900, margin: '0 auto' }}>
 
       {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>Inventarios</div>
-          {!loading && <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{inventarios.filter(i => i.estado === 'abierto').length} abiertos · {inventarios.length} total</div>}
+          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>Creá un inventario nuevo o abrí uno anterior.</div>
         </div>
         <button
-          onClick={() => { setShowModal(true); setErrorMsg('') }}
+          onClick={() => navigate('/admin/inventarios/nuevo')}
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: B, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
         >
           <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><line x1={12} y1={5} x2={12} y2={19}/><line x1={5} y1={12} x2={19} y2={12}/></svg>
-          Abrir inventario
+          Nuevo inventario
         </button>
       </div>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {inventarios.length === 0 && (
-            <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14, background: '#fff', border: '1px solid #E5E7EB' }}>
-              No hay inventarios. Creá el primero.
-            </div>
-          )}
-          {inventarios.map(inv => {
-            const es  = ESTADO_STYLE[inv.estado] || ESTADO_STYLE.cerrado
-            const s   = stats[inv.id]
-            const selected = detalle?.id === inv.id
+        <>
+          {/* ── inventario en curso destacado ── */}
+          {(() => {
+            const enCurso = inventarios.find(i => i.estado === 'abierto')
+            if (!enCurso) return null
+            const s = stats[enCurso.id]
+            const total = s?.teorico || 0
+            const cont = s?.productos || 0
+            const avance = calcAvance(s, enCurso.estado)
             return (
               <div
-                key={inv.id}
-                onClick={() => abrirDetalle(inv)}
-                style={{
-                  background: '#fff',
-                  border: `1px solid ${selected ? B : '#E5E7EB'}`,
-                  borderLeft: `4px solid ${inv.estado === 'abierto' ? G : '#D1D5DB'}`,
-                  cursor: 'pointer',
-                  transition: 'border-color .15s',
-                }}
+                onClick={() => abrirDetalle(enCurso)}
+                style={{ cursor: 'pointer', background: `linear-gradient(135deg, ${B}, ${BD})`, color: '#fff', padding: '18px 22px', marginBottom: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}
               >
-                <div style={{ padding: '16px 18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-                    <div style={{ flex: 1, minWidth: 180 }}>
-                      <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{inv.nombre}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</div>
-                    </div>
-                    <span style={{ background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '4px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
-                      {es.label}
-                    </span>
+                <div style={{ minWidth: 200 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: .8, marginBottom: 6 }}>Inventario en curso</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{enCurso.nombre}</div>
+                  <div style={{ fontSize: 12, opacity: .85, marginTop: 4 }}>
+                    {enCurso.sucursal}{enCurso.deposito ? ` · ${enCurso.deposito}` : ''}{enCurso.responsable ? ` · Responsable: ${enCurso.responsable}` : ''}
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                    {inv.fecha_inicio && (
-                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>{fmtFecha(inv.fecha_inicio)} → {fmtFecha(inv.fecha_limite)}</span>
-                    )}
-                    {inv.responsable && (
-                      <span style={{ fontSize: 12, color: '#9CA3AF' }}>Resp: {inv.responsable}</span>
-                    )}
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: B, fontWeight: 700 }}>{s ? s.productos : '—'} productos</span>
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: G, fontWeight: 700 }}>{s ? s.unidades : '—'} unidades</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 12, color: B, fontWeight: 600 }}>Ver detalle →</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{total > 0 ? `${avance}%` : '—'}</div>
+                    <div style={{ fontSize: 11, opacity: .85, marginTop: 4 }}>{total > 0 ? `${cont} / ${total} productos` : `${cont} productos contados`}</div>
                   </div>
+                  <span style={{ background: 'rgba(255,255,255,.2)', border: '1px solid rgba(255,255,255,.4)', padding: '4px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Abierto</span>
                 </div>
               </div>
             )
-          })}
-        </div>
+          })()}
+
+          {/* ── historial ── */}
+          <div style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, fontSize: 14, color: '#111827' }}>Historial</div>
+            {inventarios.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No hay inventarios. Creá el primero.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                  <thead>
+                    <tr>
+                      {[
+                        { h: 'Inventario', a: 'left' },
+                        { h: 'Sucursal · Depósito', a: 'left' },
+                        { h: 'Estado', a: 'left' },
+                        { h: 'Avance', a: 'right' },
+                        { h: 'Existencia valorizada', a: 'right' },
+                        { h: '% Dif.', a: 'right' },
+                        { h: 'Fecha', a: 'right' },
+                      ].map(({ h, a }) => (
+                        <th key={h} style={{ textAlign: a, padding: '10px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventarios.map(inv => {
+                      const es = ESTADO_STYLE[inv.estado] || ESTADO_STYLE.cerrado
+                      const s = stats[inv.id]
+                      const total = s?.teorico || 0
+                      const avance = calcAvance(s, inv.estado)
+                      const mostrarAvance = total > 0 || inv.estado === 'cerrado'
+                      return (
+                        <tr
+                          key={inv.id}
+                          onClick={() => abrirDetalle(inv)}
+                          style={{ cursor: 'pointer', borderBottom: '1px solid #F3F4F6', background: detalle?.id === inv.id ? BL : '#fff' }}
+                          onMouseEnter={e => { if (detalle?.id !== inv.id) e.currentTarget.style.background = '#F9FAFB' }}
+                          onMouseLeave={e => { if (detalle?.id !== inv.id) e.currentTarget.style.background = '#fff' }}
+                        >
+                          <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap' }}>{inv.nombre}</td>
+                          <td style={{ padding: '12px 14px', fontSize: 13, color: '#6B7280', whiteSpace: 'nowrap' }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span style={{ background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{es.label}</span>
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: B }}>{mostrarAvance ? `${avance}%` : '—'}</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#9CA3AF' }}>—</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#9CA3AF' }}>—</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fechaCorta(inv.created_at)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* ── panel de detalle ── */}
@@ -237,7 +262,7 @@ export default function InventariosScreen() {
                 style={{ width: '100%', padding: '10px 0', background: '#fff', border: `2px solid ${B}`, color: B, fontWeight: 700, fontSize: 13, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
-                Ver diferencias
+                Ver resultados
               </button>
             </div>
 
@@ -418,128 +443,6 @@ export default function InventariosScreen() {
         </div>
       )}
 
-      {/* modal crear */}
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="sup" style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: '#fff' }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Abrir nuevo inventario</div>
-              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280' }}>✕</button>
-            </div>
-            <form onSubmit={handleCrear} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Nombre */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Nombre del inventario *</div>
-                <input
-                  type="text" placeholder="Ej: Inventario Agosto 2025" value={form.nombre} autoComplete="off"
-                  onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = B}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                />
-              </div>
-
-              {/* Responsable dropdown */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Responsable</div>
-                <select
-                  value={form.responsable}
-                  onChange={e => setForm(f => ({ ...f, responsable: e.target.value }))}
-                  style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.responsable ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = B}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                >
-                  <option value="">Seleccioná un responsable...</option>
-                  {admins.map(a => <option key={a.id} value={a.nombre}>{a.nombre}</option>)}
-                </select>
-                {admins.length === 0 && (
-                  <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay usuarios admin registrados.</div>
-                )}
-              </div>
-
-              {/* Período — dos calendarios */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Fecha inicio</div>
-                  <input
-                    type="date" value={form.fecha_inicio}
-                    onChange={e => setForm(f => ({ ...f, fecha_inicio: e.target.value }))}
-                    style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 10px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box', cursor: 'pointer' }}
-                    onFocus={e => e.target.style.borderColor = B}
-                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Fecha límite</div>
-                  <input
-                    type="date" value={form.fecha_limite}
-                    onChange={e => setForm(f => ({ ...f, fecha_limite: e.target.value }))}
-                    style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 10px', fontSize: 14, color: '#111827', background: '#F9FAFB', boxSizing: 'border-box', cursor: 'pointer' }}
-                    onFocus={e => e.target.style.borderColor = B}
-                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                  />
-                </div>
-              </div>
-
-              {/* Sucursal dropdown */}
-              {(() => {
-                const sucObj = sucursales.find(s => s.nombre === form.sucursal)
-                const depsFiltrados = sucObj ? depositos.filter(d => d.sucursal_id === sucObj.id) : []
-                return (
-                  <>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Sucursal *</div>
-                      <select
-                        value={form.sucursal}
-                        onChange={e => setForm(f => ({ ...f, sucursal: e.target.value, deposito: '', deposito_id: null }))}
-                        style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.sucursal ? '#111827' : '#9CA3AF', background: '#F9FAFB', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box' }}
-                        onFocus={e => e.target.style.borderColor = B}
-                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                      >
-                        <option value="">Seleccioná una sucursal...</option>
-                        {sucursales.map(s => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
-                      </select>
-                      {sucursales.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ No hay sucursales. Agregá desde el menú Sucursales.</div>
-                      )}
-                    </div>
-
-                    {/* Depósito dropdown — filtrado por sucursal */}
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 6 }}>Depósito</div>
-                      <select
-                        value={form.deposito}
-                        onChange={e => {
-                          const nombre = e.target.value
-                          const dep = depsFiltrados.find(d => d.nombre === nombre)
-                          setForm(f => ({ ...f, deposito: nombre, deposito_id: dep?.id || null }))
-                        }}
-                        disabled={!form.sucursal}
-                        style={{ width: '100%', height: 44, border: '2px solid #E5E7EB', padding: '0 14px', fontSize: 14, color: form.deposito ? '#111827' : '#9CA3AF', background: form.sucursal ? '#F9FAFB' : '#F3F4F6', appearance: 'none', cursor: form.sucursal ? 'pointer' : 'not-allowed', boxSizing: 'border-box' }}
-                        onFocus={e => e.target.style.borderColor = B}
-                        onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                      >
-                        <option value="">{form.sucursal ? 'Sin depósito específico' : 'Seleccioná primero una sucursal'}</option>
-                        {depsFiltrados.map(d => <option key={d.id} value={d.nombre}>{d.nombre}</option>)}
-                      </select>
-                      {form.sucursal && depsFiltrados.length === 0 && (
-                        <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>⚠ Esta sucursal no tiene depósitos. Agregá desde el menú Sucursales.</div>
-                      )}
-                    </div>
-                  </>
-                )
-              })()}
-              {errorMsg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626' }}>✕ {errorMsg}</div>}
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '13px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 14, color: '#374151', cursor: 'pointer' }}>Cancelar</button>
-                <button type="submit" disabled={saving} style={{ flex: 2, padding: '13px 0', background: saving ? `${B}99` : B, color: '#fff', border: 'none', fontWeight: 700, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  {saving ? <><Spinner /> Creando...</> : '✓ Abrir inventario'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

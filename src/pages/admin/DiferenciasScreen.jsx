@@ -53,7 +53,7 @@ export default function DiferenciasScreen() {
 
       {/* header */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Diferencias · {inv.nombre}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Resultados · {inv.nombre}</div>
         <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
           {inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}
           {inv.fecha_inicio && ` · ${fmtFecha(inv.fecha_inicio)}`}

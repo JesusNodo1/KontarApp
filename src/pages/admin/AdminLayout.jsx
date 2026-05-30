@@ -4,17 +4,20 @@ import { useAuth } from '../../context/AuthContext'
 import { logout } from '../../services/auth'
 import { B, BL, G } from '../../constants/theme'
 
-const NAV_ITEMS = [
-  {
-    to: '/admin/dashboard',
-    label: 'Dashboard',
-    icon: (
-      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-        <rect x={3} y={3} width={7} height={7}/><rect x={14} y={3} width={7} height={7}/>
-        <rect x={3} y={14} width={7} height={7}/><rect x={14} y={14} width={7} height={7}/>
-      </svg>
-    ),
-  },
+// Sección protagonista: el inventario es el centro de la app.
+const INVENTARIOS_ITEM = {
+  to: '/admin/inventarios',
+  label: 'Inventarios',
+  icon: (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+      <rect x={9} y={3} width={6} height={4}/><path d="M9 12h6M9 16h4"/>
+    </svg>
+  ),
+}
+
+// Resto agrupado bajo "Configuración".
+const CONFIG_ITEMS = [
   {
     to: '/admin/productos',
     label: 'Productos',
@@ -37,41 +40,22 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to: '/admin/inventarios',
-    label: 'Inventarios',
-    icon: (
-      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-        <rect x={9} y={3} width={6} height={4}/><path d="M9 12h6M9 16h4"/>
-      </svg>
-    ),
-  },
-  {
-    to: '/admin/conteos',
-    label: 'Conteos',
-    icon: (
-      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-        <path d="M9 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2h-4"/>
-        <rect x={9} y={3} width={6} height={10}/><path d="M9 7h6M9 11h6"/>
-      </svg>
-    ),
-  },
-  {
-    to: '/admin/reportes',
-    label: 'Reportes',
-    icon: (
-      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
-        <path d="M3 3v18h18"/>
-        <path d="M7 14l4-4 4 4 5-5"/>
-      </svg>
-    ),
-  },
-  {
     to: '/admin/sucursales',
     label: 'Sucursales',
     icon: (
       <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    ),
+  },
+  {
+    to: '/admin/sincronizar',
+    label: 'Sincronizar API',
+    soloApi: true,
+    icon: (
+      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="square">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
       </svg>
     ),
   },
@@ -81,6 +65,8 @@ export default function AdminLayout() {
   const [sideOpen, setSideOpen] = useState(false)
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const apiHabilitada = user?.fuente_sync === 'api'
+  const configItems = CONFIG_ITEMS.filter(item => !item.soloApi || apiHabilitada)
 
   const handleLogout = async () => {
     await logout()
@@ -117,8 +103,18 @@ export default function AdminLayout() {
       </div>
 
       {/* nav */}
-      <nav style={{ flex: 1, paddingTop: 8 }}>
-        {NAV_ITEMS.map(item => (
+      <nav style={{ flex: 1, paddingTop: 8, overflowY: 'auto' }}>
+        {/* protagonista */}
+        <NavLink to={INVENTARIOS_ITEM.to} style={navLinkStyle} onClick={() => setSideOpen(false)}>
+          {INVENTARIOS_ITEM.icon}
+          {INVENTARIOS_ITEM.label}
+        </NavLink>
+
+        {/* grupo configuración */}
+        <div style={{ padding: '18px 16px 6px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF' }}>
+          Configuración
+        </div>
+        {configItems.map(item => (
           <NavLink key={item.to} to={item.to} style={navLinkStyle} onClick={() => setSideOpen(false)}>
             {item.icon}
             {item.label}

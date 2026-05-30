@@ -11,10 +11,12 @@ import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
+import NuevoInventarioScreen from './pages/admin/NuevoInventarioScreen'
 import ConteosScreen      from './pages/admin/ConteosScreen'
 import DiferenciasScreen  from './pages/admin/DiferenciasScreen'
 import ReportesScreen     from './pages/admin/ReportesScreen'
 import SucursalesScreen  from './pages/admin/SucursalesScreen'
+import SincronizarScreen  from './pages/admin/SincronizarScreen'
 import SoporteSelectScreen from './pages/soporte/SoporteSelectScreen'
 import SoporteLayout      from './pages/soporte/SoporteLayout'
 import SoporteScreen      from './pages/soporte/SoporteScreen'
@@ -61,10 +63,12 @@ export default function App() {
             <Route path="productos"   element={<ProductosScreen />} />
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />
+            <Route path="inventarios/nuevo" element={<NuevoInventarioScreen />} />
             <Route path="inventarios/:id/diferencias" element={<DiferenciasScreen />} />
             <Route path="conteos"     element={<ConteosScreen />} />
             <Route path="reportes"    element={<ReportesScreen />} />
             <Route path="sucursales"  element={<SucursalesScreen />} />
+            <Route path="sincronizar" element={<SincronizarScreen />} />
           </Route>
 
           {/* Soporte */}
