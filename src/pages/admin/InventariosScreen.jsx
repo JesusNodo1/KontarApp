@@ -4,7 +4,7 @@ import { B, BD, BL, G, GL } from '../../constants/theme'
 import {
   getInventarios, cerrarInventario,
   getInventarioStats, getInventarioDetalle, getZonaDetalle,
-  getStockTeoricoStatus,
+  getStockTeoricoStatus, getResumenValorizado,
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
@@ -24,6 +24,9 @@ function fechaCorta(iso) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+// Guaraníes sin decimales con separador de miles
+const fmtGs = n => (Math.round(Number(n) || 0)).toLocaleString('es-PY')
+
 // Avance = productos contados / total teórico esperado. Sin teórico, un inventario
 // cerrado se considera 100% (ya no admite más conteo) y uno abierto 0%.
 function calcAvance(stat, estado) {
@@ -37,6 +40,7 @@ export default function InventariosScreen() {
   const navigate = useNavigate()
   const [inventarios, setInventarios] = useState([])
   const [stats,       setStats]       = useState({}) // { [invId]: { conteos, productos, unidades, teorico } }
+  const [resumenVal,  setResumenVal]  = useState({}) // { [invId]: { valorizada, pct, difValor, conCosto } }
   const [loading,     setLoading]     = useState(true)
 
   // ── detalle inventario ────────────────────────────────────────
@@ -52,8 +56,9 @@ export default function InventariosScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const data = await getInventarios()
+    const [data, resVal] = await Promise.all([getInventarios(), getResumenValorizado()])
     setInventarios(data)
+    setResumenVal(resVal)
     const entries = await Promise.all(
       data.map(async inv => {
         const [s, t] = await Promise.all([
@@ -197,6 +202,9 @@ export default function InventariosScreen() {
                       const total = s?.teorico || 0
                       const avance = calcAvance(s, inv.estado)
                       const mostrarAvance = total > 0 || inv.estado === 'cerrado'
+                      // Valorización: solo para cerrados (como el PDF); abiertos van —
+                      const rv = inv.estado === 'cerrado' ? resumenVal[String(inv.id)] : null
+                      const pctColor = !rv || rv.difValor == null || rv.difValor === 0 ? '#065F46' : rv.difValor < 0 ? '#DC2626' : '#92400E'
                       return (
                         <tr
                           key={inv.id}
@@ -211,8 +219,8 @@ export default function InventariosScreen() {
                             <span style={{ background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{es.label}</span>
                           </td>
                           <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: B }}>{mostrarAvance ? `${avance}%` : '—'}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#9CA3AF' }}>—</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: '#9CA3AF' }}>—</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: rv?.valorizada != null ? '#111827' : '#9CA3AF' }}>{rv?.valorizada != null ? `Gs ${fmtGs(rv.valorizada)}` : '—'}</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: rv?.pct != null ? pctColor : '#9CA3AF' }}>{rv?.pct != null ? `${rv.pct.toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : '—'}</td>
                           <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fechaCorta(inv.created_at)}</td>
                         </tr>
                       )

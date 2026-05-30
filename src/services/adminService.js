@@ -354,6 +354,28 @@ export async function getDiferencias(inventario_id) {
   }
 }
 
+/**
+ * Resumen valorizado por inventario (existencia valorizada, teórica, diferencia y %),
+ * vía la RPC `kontar_resumen_valorizado` (una sola consulta para toda la lista).
+ * Devuelve un mapa { [inventario_id como string]: {...} }.
+ * Resiliente: si la RPC no existe todavía, devuelve {} sin romper.
+ */
+export async function getResumenValorizado() {
+  const { data, error } = await supabase.rpc('kontar_resumen_valorizado')
+  if (error) { console.warn('[getResumenValorizado]', error.message); return {} }
+  const map = {}
+  for (const r of data || []) {
+    map[String(r.inventario_id)] = {
+      valorizada: r.existencia_valorizada  != null ? Number(r.existencia_valorizada)  : null,
+      teorica:    r.existencia_teorica     != null ? Number(r.existencia_teorica)     : null,
+      difValor:   r.diferencia_valorizada  != null ? Number(r.diferencia_valorizada)  : null,
+      pct:        r.pct_diferencia         != null ? Number(r.pct_diferencia)         : null,
+      conCosto:   Number(r.con_costo) || 0,
+    }
+  }
+  return map
+}
+
 export async function getStockTeoricoStatus(inventario_id) {
   const { count } = await supabase
     .from('inventario_stock_teorico')
