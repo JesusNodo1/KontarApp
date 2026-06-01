@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { B, BD, BL, G, GL } from '../../constants/theme'
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
+import { useIsNarrow } from '../../hooks/useIsNarrow'
 
 const ESTADO_STYLE = {
   abierto: { bg: GL,        color: '#065F46', border: '#6EE7B7', label: 'Abierto' },
@@ -38,10 +39,14 @@ function calcAvance(stat, estado) {
 
 export default function InventariosScreen() {
   const navigate = useNavigate()
+  const isNarrow = useIsNarrow()
   const [inventarios, setInventarios] = useState([])
   const [stats,       setStats]       = useState({}) // { [invId]: { conteos, productos, unidades, teorico } }
   const [resumenVal,  setResumenVal]  = useState({}) // { [invId]: { valorizada, pct, difValor, conCosto } }
   const [loading,     setLoading]     = useState(true)
+  const [periodo,     setPeriodo]     = useState('mes')   // 'mes' | 'mesPasado' | 'todos' | 'rango'
+  const [rangoDesde,  setRangoDesde]  = useState('')
+  const [rangoHasta,  setRangoHasta]  = useState('')
 
   // ── detalle inventario ────────────────────────────────────────
   const [detalle,        setDetalle]        = useState(null)
@@ -73,6 +78,53 @@ export default function InventariosScreen() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // KPI global: % de diferencia ponderado por plata sobre los inventarios CERRADOS
+  // del período elegido (suma de diferencias valorizadas / suma de teórico valorizado).
+  const kpiGlobal = useMemo(() => {
+    const now = new Date()
+    const inRange = (iso) => {
+      if (!iso) return false
+      const d = new Date(iso)
+      if (periodo === 'todos') return true
+      if (periodo === 'mes')   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      if (periodo === 'mesPasado') {
+        const m = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth()
+      }
+      if (periodo === 'rango') {
+        if (rangoDesde && d < new Date(rangoDesde + 'T00:00:00')) return false
+        if (rangoHasta && d > new Date(rangoHasta + 'T23:59:59')) return false
+        return true
+      }
+      return true
+    }
+    let valor = 0, teor = 0, n = 0
+    for (const inv of inventarios) {
+      if (inv.estado !== 'cerrado') continue
+      if (!inRange(inv.created_at)) continue
+      const rv = resumenVal[String(inv.id)]
+      if (!rv || !rv.conCosto || rv.teorica == null) continue
+      valor += rv.valorizada || 0
+      teor  += rv.teorica || 0
+      n++
+    }
+    const dif = valor - teor
+    const pct = teor > 0 ? Math.abs(dif) / teor * 100 : null
+    return { valor, teor, dif, pct, n }
+  }, [inventarios, resumenVal, periodo, rangoDesde, rangoHasta])
+
+  // Datos calculados por inventario (compartidos entre la tabla desktop y las tarjetas móvil).
+  const datosFila = (inv) => {
+    const es = ESTADO_STYLE[inv.estado] || ESTADO_STYLE.cerrado
+    const s = stats[inv.id]
+    const total = s?.teorico || 0
+    const avance = calcAvance(s, inv.estado)
+    const mostrarAvance = total > 0 || inv.estado === 'cerrado'
+    const rv = inv.estado === 'cerrado' ? resumenVal[String(inv.id)] : null
+    const pctColor = !rv || rv.difValor == null || rv.difValor === 0 ? '#065F46' : rv.difValor < 0 ? '#DC2626' : '#92400E'
+    return { es, total, avance, mostrarAvance, rv, pctColor }
+  }
 
   const abrirDetalle = async (inv) => {
     setDetalle(inv)
@@ -141,6 +193,57 @@ export default function InventariosScreen() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
       ) : (
         <>
+          {/* ── KPI global: % diferencia del período ── */}
+          {(() => {
+            const difColor = kpiGlobal.dif < 0 ? '#DC2626' : kpiGlobal.dif > 0 ? '#92400E' : '#065F46'
+            const selStyle = { height: 34, padding: '0 10px', border: '2px solid #E5E7EB', background: '#fff', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }
+            const stat = (label, value, color) => (
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color }}>{value}</div>
+              </div>
+            )
+            return (
+              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${B}`, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF' }}>KPI global · % diferencia</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select value={periodo} onChange={e => setPeriodo(e.target.value)} style={selStyle}>
+                      <option value="mes">Este mes</option>
+                      <option value="mesPasado">Mes pasado</option>
+                      <option value="todos">Todos</option>
+                      <option value="rango">Rango…</option>
+                    </select>
+                    {periodo === 'rango' && (
+                      <>
+                        <input type="date" value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} style={selStyle} />
+                        <input type="date" value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} style={selStyle} />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {kpiGlobal.n === 0 ? (
+                  <div style={{ marginTop: 12, fontSize: 13, color: '#9CA3AF' }}>Sin inventarios cerrados valorizados en este período.</div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: isNarrow ? '14px 20px' : 28, flexWrap: 'wrap', marginTop: 12 }}>
+                    <div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 34, fontWeight: 700, lineHeight: 1, color: difColor }}>
+                        {kpiGlobal.pct != null ? `${kpiGlobal.pct.toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : '—'}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
+                        {kpiGlobal.pct != null ? `eficiencia ${(100 - kpiGlobal.pct).toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : ''} · {kpiGlobal.n} inventario{kpiGlobal.n !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    {stat('Valorizado contado', `Gs ${fmtGs(kpiGlobal.valor)}`, G)}
+                    {stat('Teórico', `Gs ${fmtGs(kpiGlobal.teor)}`, '#111827')}
+                    {stat('Diferencia', `${kpiGlobal.dif > 0 ? '+' : ''}Gs ${fmtGs(kpiGlobal.dif)}`, difColor)}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* ── inventario en curso destacado ── */}
           {(() => {
             const enCurso = inventarios.find(i => i.estado === 'abierto')
@@ -177,6 +280,33 @@ export default function InventariosScreen() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, fontSize: 14, color: '#111827' }}>Historial</div>
             {inventarios.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No hay inventarios. Creá el primero.</div>
+            ) : isNarrow ? (
+              <div>
+                {inventarios.map(inv => {
+                  const { es, avance, mostrarAvance, rv, pctColor } = datosFila(inv)
+                  return (
+                    <div
+                      key={inv.id}
+                      onClick={() => abrirDetalle(inv)}
+                      style={{ cursor: 'pointer', padding: '14px 16px', borderBottom: '1px solid #F3F4F6', background: detalle?.id === inv.id ? BL : '#fff' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 15, color: '#111827', lineHeight: 1.3 }}>{inv.nombre}</div>
+                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</div>
+                        </div>
+                        <span style={{ flexShrink: 0, background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{es.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', fontSize: 12, color: '#6B7280', alignItems: 'baseline' }}>
+                        <span>Avance <b style={{ color: B, fontFamily: "'DM Mono',monospace" }}>{mostrarAvance ? `${avance}%` : '—'}</b></span>
+                        {rv?.valorizada != null && <span>Valorizado <b style={{ color: '#111827', fontFamily: "'DM Mono',monospace" }}>Gs {fmtGs(rv.valorizada)}</b></span>}
+                        {rv?.pct != null && <span>% Dif <b style={{ color: pctColor, fontFamily: "'DM Mono',monospace" }}>{rv.pct.toLocaleString('es-PY', { maximumFractionDigits: 1 })}%</b></span>}
+                        <span style={{ marginLeft: 'auto', color: '#9CA3AF' }}>{fechaCorta(inv.created_at)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
@@ -197,14 +327,7 @@ export default function InventariosScreen() {
                   </thead>
                   <tbody>
                     {inventarios.map(inv => {
-                      const es = ESTADO_STYLE[inv.estado] || ESTADO_STYLE.cerrado
-                      const s = stats[inv.id]
-                      const total = s?.teorico || 0
-                      const avance = calcAvance(s, inv.estado)
-                      const mostrarAvance = total > 0 || inv.estado === 'cerrado'
-                      // Valorización: solo para cerrados (como el PDF); abiertos van —
-                      const rv = inv.estado === 'cerrado' ? resumenVal[String(inv.id)] : null
-                      const pctColor = !rv || rv.difValor == null || rv.difValor === 0 ? '#065F46' : rv.difValor < 0 ? '#DC2626' : '#92400E'
+                      const { es, avance, mostrarAvance, rv, pctColor } = datosFila(inv)
                       return (
                         <tr
                           key={inv.id}

@@ -65,8 +65,8 @@ export default function AdminLayout() {
   const [sideOpen, setSideOpen] = useState(false)
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const apiHabilitada = user?.fuente_sync === 'api'
-  const configItems = CONFIG_ITEMS.filter(item => !item.soloApi || apiHabilitada)
+  // Sincronizar API se muestra siempre (la propia pantalla avisa si el cliente no tiene API).
+  const configItems = CONFIG_ITEMS
 
   const handleLogout = async () => {
     await logout()

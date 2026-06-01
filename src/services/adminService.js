@@ -393,6 +393,21 @@ export async function getZonaDetalle(zona_id) {
   return data || []
 }
 
+/**
+ * Zonas (con cantidad) donde se contó un producto en un inventario.
+ * Devuelve [{ cantidad, updated_at, zona:{id,nombre} }] — una fila por zona.
+ */
+export async function getConteosProductoZonas(inventario_id, producto_id) {
+  const { data, error } = await supabase
+    .from('conteos')
+    .select('cantidad, updated_at, zona:zona_id(id, nombre)')
+    .eq('inventario_id', inventario_id)
+    .eq('producto_id', producto_id)
+    .order('updated_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data || []
+}
+
 // ── Productos ────────────────────────────────────────────────
 export async function getProductosAdmin() {
   const PAGE = 1000

@@ -7,7 +7,6 @@ import ActivacionScreen from './pages/auth/ActivacionScreen'
 import LoginScreen      from './pages/auth/LoginScreen'
 import CounterApp       from './pages/counter/CounterApp'
 import AdminLayout      from './pages/admin/AdminLayout'
-import DashboardScreen  from './pages/admin/DashboardScreen'
 import ProductosScreen  from './pages/admin/ProductosScreen'
 import UsuariosScreen   from './pages/admin/UsuariosScreen'
 import InventariosScreen  from './pages/admin/InventariosScreen'
@@ -58,8 +57,7 @@ export default function App() {
               </PrivateRoute>
             }
           >
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard"   element={<DashboardScreen />} />
+            <Route index element={<Navigate to="/admin/inventarios" replace />} />
             <Route path="productos"   element={<ProductosScreen />} />
             <Route path="usuarios"    element={<UsuariosScreen />} />
             <Route path="inventarios" element={<InventariosScreen />} />

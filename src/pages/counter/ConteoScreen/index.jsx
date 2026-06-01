@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { B, BD, BL, G, GD, GL } from '../../../constants/theme'
 import { bxCod } from '../../../services/productService'
 import { loadZx } from '../../../services/scanner'
-import { getConteosPorZona, upsertConteo, deleteConteo, addScan, getScansPorZona, deleteScan } from '../../../services/conteoService'
+import { getConteosPorZona, upsertConteo, deleteConteo, addScan, getScansPorZona, deleteScan, getInventarioProductoIds } from '../../../services/conteoService'
 import Spinner from '../../../components/Spinner'
 import ModalCam from './ModalCam'
 import ModalBusqueda from './ModalBusqueda'
@@ -71,6 +71,9 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [camR,       setCamR]       = useState(false)
   const [camLast,    setCamLast]    = useState(null)
   const [dupWarning, setDupWarning] = useState(null)  // { prod, existente, nueva }
+  const [scopeWarning, setScopeWarning] = useState(null) // { prod, onContinue } — producto fuera del alcance
+  const scopeRef     = useRef(null)   // Set de producto_ids del alcance (null = sin restricción)
+  const scopeWarnRef = useRef(false)  // true mientras hay un aviso de alcance abierto (frena la cámara)
   const [rView,      setRView]      = useState('unitario') // subvista reporte: 'unitario' | 'total'
   const [scans,      setScans]      = useState([])         // historial de scans de la sesión (no persistido)
   const [undoing,    setUndoing]    = useState(false)
@@ -95,6 +98,27 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       .then(([cs, sc]) => { setConteos(cs); setScans(sc) })
       .finally(() => setLoadingC(false))
   }, [zona.id])
+
+  // Alcance del inventario (subconjunto del wizard). Vacío → sin restricción ("Todos").
+  useEffect(() => {
+    let alive = true
+    getInventarioProductoIds(inv.id)
+      .then(ids => { if (alive) scopeRef.current = ids.length ? new Set(ids) : null })
+      .catch(() => { if (alive) scopeRef.current = null })
+    return () => { alive = false }
+  }, [inv.id])
+
+  // Flag para que la cámara no procese scans mientras hay un aviso de alcance abierto.
+  useEffect(() => { scopeWarnRef.current = !!scopeWarning }, [scopeWarning])
+
+  // Gate de alcance: corre `cont` si el producto está en el alcance (o no hay
+  // restricción); si no, avisa y deja decidir "Contar igual" / "Cancelar".
+  const withScope = useCallback((p, cont) => {
+    const s = scopeRef.current
+    if (!s || s.has(Number(p.id))) { cont(); return }
+    playBeep('err')
+    setScopeWarning({ prod: p, onContinue: cont })
+  }, [])
 
   // Wake Lock: mantener la pantalla del colector encendida durante el conteo
   useEffect(() => {
@@ -143,10 +167,10 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
 
   const firstFocusRef = useRef(true)
   useEffect(() => {
-    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning) return
+    if (loadingC || sub !== 'conteo' || mOpen || camO || dupWarning || scopeWarning) return
     focusScan(firstFocusRef.current)
     firstFocusRef.current = false
-  }, [loadingC, sub, mOpen, camO, dupWarning, focusScan])
+  }, [loadingC, sub, mOpen, camO, dupWarning, scopeWarning, focusScan])
 
   // Guardar en DB y actualizar estado local.
   // increment=true  → suma c a la cantidad existente (modo unitario)
@@ -322,19 +346,21 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       setMCodInicial(cod.trim()); setMOpen(true)
       return
     }
-    if (modo === 'total') {
-      // Total: cerrar cámara y mostrar tarjeta para ingresar cantidad
-      // Cerrar cámara con demora para que el beep arranque antes de liberar el MediaStream
-      playBeep('ok')
-      setTimeout(cerrarCam, 250)
-      setProd(p); setCantidad(1); setQuery(cod.trim())
-    } else {
-      // Unitario: +1 directo, cámara sigue abierta
-      const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
-      playBeep(isDup ? 'sum' : 'ok'); tFlash()
-      setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, codigo_barras: p.codigo_barras, raw: cod.trim() })
-      await regAndLog(p, 1, true)
-    }
+    withScope(p, async () => {
+      if (modo === 'total') {
+        // Total: cerrar cámara y mostrar tarjeta para ingresar cantidad
+        // Cerrar cámara con demora para que el beep arranque antes de liberar el MediaStream
+        playBeep('ok')
+        setTimeout(cerrarCam, 250)
+        setProd(p); setCantidad(1); setQuery(cod.trim())
+      } else {
+        // Unitario: +1 directo, cámara sigue abierta
+        const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
+        playBeep(isDup ? 'sum' : 'ok'); tFlash()
+        setCamLast({ nombre: p.nombre, variante: p.variante, sku: p.sku, codigo_barras: p.codigo_barras, raw: cod.trim() })
+        await regAndLog(p, 1, true)
+      }
+    })
   }
 
   /* ── activar autofocus continuo en el track de video ── */
@@ -379,7 +405,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
         },
         vidRef.current,
         (res) => {
-          if (!res || coolRef.current) return
+          if (!res || coolRef.current || scopeWarnRef.current) return
           coolRef.current = true
           setTimeout(() => { coolRef.current = false }, 600)
           camProcRef.current(res.getText())
@@ -444,6 +470,17 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   }, [dupWarning])
 
   useEffect(() => {
+    if (!scopeWarning) return
+    pushOverlay('scope')
+    const onPop = () => setScopeWarning(null)
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      consumeOverlay('scope')
+    }
+  }, [scopeWarning])
+
+  useEffect(() => {
     if (sub !== 'reporte') return
     pushOverlay('reporte')
     const onPop = () => setSub('conteo')
@@ -462,14 +499,16 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
     setBuscando(false)
     if (!p) { playBeep('err'); setMCodInicial(cod.trim()); setMOpen(true); setQuery(''); return }
     // Unitario → +1 directo; Total → muestra tarjeta para ingresar cantidad exacta
-    if (modo === 'unitario') {
-      const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
-      playBeep(isDup ? 'sum' : 'ok'); tFlash()
-      await sl(120); await regAndLog(p, 1, true)
-      setQuery(''); focusScan()
-    }
-    else { setProd(p); setCantidad(1); setQuery(cod) }
-  }, [modo, regAndLog])
+    withScope(p, async () => {
+      if (modo === 'unitario') {
+        const isDup = !!conteosRef.current.find(x => x.producto_id === p.id)
+        playBeep(isDup ? 'sum' : 'ok'); tFlash()
+        await sl(120); await regAndLog(p, 1, true)
+        setQuery(''); focusScan()
+      }
+      else { setProd(p); setCantidad(1); setQuery(cod) }
+    })
+  }, [modo, regAndLog, withScope, focusScan])
 
   // Mantener la ref al último procCod para que el listener global pueda llamarlo sin TDZ
   useEffect(() => { procCodRef.current = procCod }, [procCod])
@@ -506,7 +545,17 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
       setMOpen(false); setProd(null); setQuery(''); setCantidad(1)
       focusScan(); return
     }
-    setProd(p); setQuery(p.codigo_barras || p.sku || ''); setCantidad(1); setModo('total'); setMOpen(false)
+    withScope(p, () => {
+      setProd(p); setQuery(p.codigo_barras || p.sku || ''); setCantidad(1); setModo('total'); setMOpen(false)
+    })
+  }
+
+  // ── Aviso de alcance ──
+  const cerrarScope = () => { setScopeWarning(null); if (!camO) focusScan() }
+  const confirmarScope = () => {
+    const cont = scopeWarning?.onContinue
+    setScopeWarning(null)
+    cont?.()
   }
 
   /* ── finalizar zona ── */
@@ -572,6 +621,32 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
               <button onClick={handleSumarDup} style={{ flex: 2, padding: '14px 0', background: G, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
                 Sumar · {dupWarning.existente + dupWarning.nueva} uds.
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Aviso producto fuera del alcance ── */}
+      {scopeWarning && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={cerrarScope} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+          <div style={{ position: 'relative', background: '#fff', padding: '20px 16px', paddingBottom: 'max(env(safe-area-inset-bottom),20px)', borderTop: '3px solid #F59E0B' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="square"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#92400E' }}>Fuera del alcance del inventario</div>
+            </div>
+            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16, paddingLeft: 26 }}>
+              <b style={{ color: '#111827' }}>{scopeWarning.prod.nombre}</b>{scopeWarning.prod.variante ? ` — ${scopeWarning.prod.variante}` : ''}<br/>
+              No pertenece a este inventario. Si lo contás igual, va a figurar como “No esperado”.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={cerrarScope} style={{ flex: 1, padding: '14px 0', background: '#F3F4F6', border: 'none', fontWeight: 700, fontSize: 13, color: '#374151', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarScope} style={{ flex: 2, padding: '14px 0', background: '#F59E0B', border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                Contar igual
               </button>
             </div>
           </div>
