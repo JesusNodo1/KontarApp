@@ -338,6 +338,7 @@ export async function getDiferencias(inventario_id) {
     filas,
     resumen: {
       total:         filas.length,
+      productosContados: filas.filter(f => (Number(f.contado) || 0) > 0).length,
       ok:            filas.filter(f => f.estado === 'ok').length,
       pendientes:    filas.filter(f => f.estado === 'pendiente').length,
       faltantes:     filas.filter(f => f.estado === 'faltante').length,

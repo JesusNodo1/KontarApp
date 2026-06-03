@@ -317,10 +317,11 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
       )}
 
       {/* resumen */}
-      <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? 'repeat(3, 1fr)' : 'repeat(7, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { lbl: 'Total',         val: r.total,         color: '#111827' },
-          { lbl: 'Total Conteo',  val: r.totalContado,  color: G },
+          { lbl: 'Total',         val: r.total,             color: '#111827' },
+          { lbl: 'Contados',      val: r.productosContados, color: B },
+          { lbl: 'Total Conteo',  val: r.totalContado,      color: G },
           { lbl: 'OK',            val: r.ok,            color: '#065F46' },
           { lbl: 'Pendientes',    val: r.pendientes,    color: '#6B7280' },
           { lbl: 'Faltantes',     val: r.faltantes,     color: '#DC2626' },
