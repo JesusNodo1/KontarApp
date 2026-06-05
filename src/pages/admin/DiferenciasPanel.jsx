@@ -28,7 +28,7 @@ const ESTADO_LABEL = {
   'no-esperado':  { label: 'No esperado', bg: '#EFF6FF', color: '#1D4ED8' },
 }
 
-export default function DiferenciasPanel({ inventario, onData, extraToolbar = null }) {
+export default function DiferenciasPanel({ inventario, onData, onView, extraToolbar = null }) {
   const { user } = useAuth()
   const apiHabilitada = user?.fuente_sync === 'api'
   const isNarrow = useIsNarrow()
@@ -138,9 +138,19 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     }
   }
 
+  const FILTRO_SLUG = {
+    todos:         'todos',
+    diferencias:   'diferencias',
+    pendiente:     'pendientes',
+    faltante:      'faltantes',
+    sobrante:      'sobrantes',
+    'no-esperado': 'no_esperados',
+    ok:            'ok',
+  }
+
   const handleExportExcel = () => {
-    if (!data?.filas?.length) return
-    const rows = data.filas.map(f => ({
+    if (!filtradas.length) return
+    const rows = filtradas.map(f => ({
       'Código de barras': f.codigo_barras || '',
       'Producto':         f.nombre || '',
       'Clasificación':    f.variante || '',
@@ -153,9 +163,11 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
     }))
     const ws = xlsxUtils.json_to_sheet(rows)
     const wb = xlsxUtils.book_new()
-    xlsxUtils.book_append_sheet(wb, ws, 'Resultados')
+    const sheetName = (FILTRO_SLUG[filtro] || 'resultados').slice(0, 31)
+    xlsxUtils.book_append_sheet(wb, ws, sheetName)
     const nombre = (inventario.nombre || 'inventario').replace(/[^\w-]+/g, '_').slice(0, 40)
-    xlsxWriteFile(wb, `Resultados_${nombre}.xlsx`)
+    const slug = FILTRO_SLUG[filtro] || 'resultados'
+    xlsxWriteFile(wb, `Resultados_${nombre}_${slug}.xlsx`)
   }
 
   // Expande/colapsa una fila y carga (una vez) las zonas donde se contó ese producto.
@@ -201,6 +213,10 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
   }, [data, filtro, busqueda, magMin, variante])
 
   useEffect(() => { setPagina(1) }, [filtro, busqueda, magMin, variante])
+
+  // Notificar al padre cada vez que cambia lo que el usuario está viendo,
+  // para que botones externos (ReporteDiferencias) puedan exportar lo mismo.
+  useEffect(() => { onView?.({ filas: filtradas, filtro }) }, [filtradas, filtro, onView])
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
   const paginaAct    = Math.min(pagina, totalPaginas)
@@ -357,9 +373,9 @@ export default function DiferenciasPanel({ inventario, onData, extraToolbar = nu
         </select>
         <button
           onClick={handleExportExcel}
-          disabled={!data?.filas?.length}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: G, fontWeight: 700, fontSize: 12, cursor: data?.filas?.length ? 'pointer' : 'not-allowed', letterSpacing: '0.03em', textTransform: 'uppercase' }}
-          title="Exportar el detalle a Excel"
+          disabled={!filtradas.length}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 38, padding: '0 14px', background: '#fff', border: `2px solid ${G}`, color: G, fontWeight: 700, fontSize: 12, cursor: filtradas.length ? 'pointer' : 'not-allowed', letterSpacing: '0.03em', textTransform: 'uppercase' }}
+          title={`Exportar a Excel las ${filtradas.length} fila(s) visibles (filtro: ${filtro})`}
         >
           <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
           Exportar Excel

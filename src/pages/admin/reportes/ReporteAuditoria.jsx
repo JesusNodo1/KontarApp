@@ -84,6 +84,9 @@ export default function ReporteAuditoria({ inventario }) {
   const sumas = filtradas.filter(x => (x.delta ?? (x.next - x.prev)) > 0).length
   const restas = filtradas.filter(x => (x.delta ?? (x.next - x.prev)) < 0).length
 
+  const TIPO_SLUG  = { todos: 'todos', suma: 'sumas', resta: 'restas' }
+  const TIPO_LABEL = { todos: 'Auditoría', suma: 'Sumas', resta: 'Restas' }
+
   const handleExport = () => {
     if (filtradas.length === 0) return
     const rowsX = filtradas.map(s => ({
@@ -98,6 +101,7 @@ export default function ReporteAuditoria({ inventario }) {
       next:           s.next,
       delta:          s.delta ?? (s.next - s.prev),
     }))
+    const slug = TIPO_SLUG[tipoDelta] || 'todos'
     exportToXlsx(
       rowsX,
       [
@@ -112,8 +116,8 @@ export default function ReporteAuditoria({ inventario }) {
         { key: 'next',          label: 'Después' },
         { key: 'delta',         label: 'Delta' },
       ],
-      `auditoria_${inventario.nombre || 'inventario'}`.replace(/[^a-z0-9_-]+/gi, '_').toLowerCase(),
-      'Auditoría',
+      `auditoria_${slug}_${inventario.nombre || 'inventario'}`.replace(/[^a-z0-9_-]+/gi, '_').toLowerCase(),
+      TIPO_LABEL[tipoDelta] || 'Auditoría',
     )
   }
 
@@ -143,6 +147,7 @@ export default function ReporteAuditoria({ inventario }) {
         <button
           onClick={handleExport}
           disabled={loading || filtradas.length === 0}
+          title={`Exportar ${filtradas.length} fila(s) visibles (${TIPO_LABEL[tipoDelta] || 'Auditoría'})`}
           style={{ padding: '0 18px', height: 42, background: filtradas.length === 0 || loading ? '#E5E7EB' : G, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: filtradas.length === 0 || loading ? 'not-allowed' : 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="square"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1={12} y1={15} x2={12} y2={3}/></svg>
