@@ -10,6 +10,7 @@ import {
 } from '../../services/adminService'
 import { sincronizarTodo } from '../../services/apiExternaService'
 import { useAuth } from '../../context/AuthContext'
+import { useIsNarrow } from '../../hooks/useIsNarrow'
 import Spinner from '../../components/Spinner'
 
 const FORM_VACÍO = { sku: '', nombre: '', variante: '', codigo_barras: '' }
@@ -17,6 +18,7 @@ const FORM_VACÍO = { sku: '', nombre: '', variante: '', codigo_barras: '' }
 export default function ProductosScreen() {
   const { user } = useAuth()
   const apiHabilitada = user?.fuente_sync === 'api'
+  const isNarrow = useIsNarrow()
 
   const [productos,  setProductos]  = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -283,56 +285,102 @@ export default function ProductosScreen() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-            {['Cód. Barras', 'Producto / Variante', 'SKU', 'Estado', ''].map((h, i) => (
-              <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 4 ? 'right' : 'left' }}>{h}</div>
-            ))}
-          </div>
-          <div style={{ overflowX: 'auto' }}>
+          {!isNarrow && (
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+              {['Cód. Barras', 'Producto / Variante', 'SKU', 'Estado', ''].map((h, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9CA3AF', textAlign: i === 4 ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+          )}
+          <div>
             {filtrados.length > 0
               ? paginados.map((p, i) => (
-                  <div
-                    key={p.id}
-                    style={{
-                      display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px',
-                      padding: '11px 16px',
-                      borderBottom: i < paginados.length - 1 ? '1px solid #F3F4F6' : 'none',
-                      alignItems: 'center',
-                      background: !p.activo ? '#FAFAFA' : (i % 2 === 0 ? '#fff' : '#FAFAFA'),
-                      opacity: p.activo ? 1 : 0.55,
-                    }}
-                  >
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.codigo_barras}</div>
-                    <div style={{ paddingLeft: 8 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{p.nombre}</div>
-                      {p.variante && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{p.variante}</div>}
+                  isNarrow ? (
+                    <div
+                      key={p.id}
+                      style={{
+                        padding: '12px 14px',
+                        borderBottom: i < paginados.length - 1 ? '1px solid #F3F4F6' : 'none',
+                        background: !p.activo ? '#FAFAFA' : '#fff',
+                        opacity: p.activo ? 1 : 0.55,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', whiteSpace: 'nowrap' }}>{p.codigo_barras}</span>
+                        <span style={{ background: p.activo ? GL : '#F3F4F6', color: p.activo ? '#065F46' : '#6B7280', padding: '2px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                          {p.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                          <button
+                            onClick={() => abrirEditar(p)}
+                            title="Editar"
+                            style={{ width: 32, height: 32, background: BL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: B }}
+                          >
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button
+                            onClick={() => handleToggle(p)}
+                            title={p.activo ? 'Desactivar' : 'Activar'}
+                            style={{ width: 32, height: 32, background: p.activo ? '#FEF2F2' : GL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.activo ? '#DC2626' : G }}
+                          >
+                            {p.activo
+                              ? <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><circle cx={12} cy={12} r={10}/><line x1={4.93} y1={4.93} x2={19.07} y2={19.07}/></svg>
+                              : <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {p.variante && <span>{p.variante}</span>}
+                        {p.sku && <span style={{ fontFamily: "'DM Mono',monospace", color: '#9CA3AF' }}>SKU {p.sku}</span>}
+                      </div>
                     </div>
-                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: '#6B7280' }}>{p.sku || '—'}</div>
-                    <div>
-                      <span style={{ background: p.activo ? GL : '#F3F4F6', color: p.activo ? '#065F46' : '#6B7280', padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                        {p.activo ? 'Activo' : 'Inactivo'}
-                      </span>
+                  ) : (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 80px',
+                        padding: '11px 16px',
+                        borderBottom: i < paginados.length - 1 ? '1px solid #F3F4F6' : 'none',
+                        alignItems: 'center',
+                        background: !p.activo ? '#FAFAFA' : (i % 2 === 0 ? '#fff' : '#FAFAFA'),
+                        opacity: p.activo ? 1 : 0.55,
+                      }}
+                    >
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: B, fontWeight: 600, background: BL, border: '1px solid #BFDBFE', padding: '2px 6px', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.codigo_barras}</div>
+                      <div style={{ paddingLeft: 8, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nombre}</div>
+                        {p.variante && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.variante}</div>}
+                      </div>
+                      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.sku || '—'}</div>
+                      <div>
+                        <span style={{ background: p.activo ? GL : '#F3F4F6', color: p.activo ? '#065F46' : '#6B7280', padding: '3px 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                          {p.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                        <button
+                          onClick={() => abrirEditar(p)}
+                          title="Editar"
+                          style={{ width: 30, height: 30, background: BL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: B }}
+                        >
+                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button
+                          onClick={() => handleToggle(p)}
+                          title={p.activo ? 'Desactivar' : 'Activar'}
+                          style={{ width: 30, height: 30, background: p.activo ? '#FEF2F2' : GL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.activo ? '#DC2626' : G }}
+                        >
+                          {p.activo
+                            ? <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><circle cx={12} cy={12} r={10}/><line x1={4.93} y1={4.93} x2={19.07} y2={19.07}/></svg>
+                            : <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                          }
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                      <button
-                        onClick={() => abrirEditar(p)}
-                        title="Editar"
-                        style={{ width: 30, height: 30, background: BL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: B }}
-                      >
-                        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button
-                        onClick={() => handleToggle(p)}
-                        title={p.activo ? 'Desactivar' : 'Activar'}
-                        style={{ width: 30, height: 30, background: p.activo ? '#FEF2F2' : GL, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.activo ? '#DC2626' : G }}
-                      >
-                        {p.activo
-                          ? <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><circle cx={12} cy={12} r={10}/><line x1={4.93} y1={4.93} x2={19.07} y2={19.07}/></svg>
-                          : <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
-                        }
-                      </button>
-                    </div>
-                  </div>
+                  )
                 ))
               : (
                 <div style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>

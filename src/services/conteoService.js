@@ -27,6 +27,20 @@ export async function getTotalProductos() {
 }
 
 /**
+ * Total del alcance del inventario: cuenta los productos en `inventario_productos`
+ * (subset elegido en el wizard). Si el inventario fue creado en modo "todos"
+ * (sin subset), cae al catálogo activo entero.
+ */
+export async function getScopeProductos(inventario_id) {
+  const { count } = await supabase
+    .from('inventario_productos')
+    .select('producto_id', { count: 'exact', head: true })
+    .eq('inventario_id', inventario_id)
+  if (count && count > 0) return count
+  return await getTotalProductos()
+}
+
+/**
  * Zonas del inventario, con conteo de productos ya registrados
  */
 export async function getZonas(inventario_id, deposito_id = null) {

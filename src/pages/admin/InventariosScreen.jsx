@@ -280,20 +280,32 @@ export default function InventariosScreen() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, fontSize: 14, color: '#111827' }}>Historial</div>
             {inventarios.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>No hay inventarios. Creá el primero.</div>
-            ) : isNarrow ? (
-              <div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10, padding: 10, background: '#F9FAFB' }}>
                 {inventarios.map(inv => {
                   const { es, avance, mostrarAvance, rv, pctColor } = datosFila(inv)
+                  const seleccionado = detalle?.id === inv.id
                   return (
                     <div
                       key={inv.id}
                       onClick={() => abrirDetalle(inv)}
-                      style={{ cursor: 'pointer', padding: '14px 16px', borderBottom: '1px solid #F3F4F6', background: detalle?.id === inv.id ? BL : '#fff' }}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '14px 16px',
+                        background: seleccionado ? BL : '#fff',
+                        border: `1px solid ${seleccionado ? B : '#E5E7EB'}`,
+                        borderLeft: `3px solid ${inv.estado === 'abierto' ? G : (seleccionado ? B : '#D1D5DB')}`,
+                        boxShadow: seleccionado ? `0 0 0 1px ${B}` : '0 1px 2px rgba(0,0,0,0.04)',
+                        transition: 'background .15s, box-shadow .15s, border-color .15s',
+                        minWidth: 0,
+                      }}
+                      onMouseEnter={e => { if (!seleccionado) e.currentTarget.style.background = '#FAFAFA' }}
+                      onMouseLeave={e => { if (!seleccionado) e.currentTarget.style.background = '#fff' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 15, color: '#111827', lineHeight: 1.3 }}>{inv.nombre}</div>
-                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</div>
+                          <div style={{ fontWeight: 600, fontSize: 15, color: '#111827', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.nombre}</div>
+                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</div>
                         </div>
                         <span style={{ flexShrink: 0, background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{es.label}</span>
                       </div>
@@ -306,50 +318,6 @@ export default function InventariosScreen() {
                     </div>
                   )
                 })}
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
-                  <thead>
-                    <tr>
-                      {[
-                        { h: 'Inventario', a: 'left' },
-                        { h: 'Sucursal · Depósito', a: 'left' },
-                        { h: 'Estado', a: 'left' },
-                        { h: 'Avance', a: 'right' },
-                        { h: 'Existencia valorizada', a: 'right' },
-                        { h: '% Dif.', a: 'right' },
-                        { h: 'Fecha', a: 'right' },
-                      ].map(({ h, a }) => (
-                        <th key={h} style={{ textAlign: a, padding: '10px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#9CA3AF', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventarios.map(inv => {
-                      const { es, avance, mostrarAvance, rv, pctColor } = datosFila(inv)
-                      return (
-                        <tr
-                          key={inv.id}
-                          onClick={() => abrirDetalle(inv)}
-                          style={{ cursor: 'pointer', borderBottom: '1px solid #F3F4F6', background: detalle?.id === inv.id ? BL : '#fff' }}
-                          onMouseEnter={e => { if (detalle?.id !== inv.id) e.currentTarget.style.background = '#F9FAFB' }}
-                          onMouseLeave={e => { if (detalle?.id !== inv.id) e.currentTarget.style.background = '#fff' }}
-                        >
-                          <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 14, color: '#111827', whiteSpace: 'nowrap' }}>{inv.nombre}</td>
-                          <td style={{ padding: '12px 14px', fontSize: 13, color: '#6B7280', whiteSpace: 'nowrap' }}>{inv.sucursal}{inv.deposito ? ` · ${inv.deposito}` : ''}</td>
-                          <td style={{ padding: '12px 14px' }}>
-                            <span style={{ background: es.bg, color: es.color, border: `1px solid ${es.border}`, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{es.label}</span>
-                          </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: B }}>{mostrarAvance ? `${avance}%` : '—'}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, color: rv?.valorizada != null ? '#111827' : '#9CA3AF' }}>{rv?.valorizada != null ? `Gs ${fmtGs(rv.valorizada)}` : '—'}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 700, color: rv?.pct != null ? pctColor : '#9CA3AF' }}>{rv?.pct != null ? `${rv.pct.toLocaleString('es-PY', { maximumFractionDigits: 1 })}%` : '—'}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 12, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fechaCorta(inv.created_at)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
               </div>
             )}
           </div>

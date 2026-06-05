@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { logout as doLogout, getDeviceId } from '../../services/auth'
 import {
-  getInventarioActivo, getTotalProductos,
+  getInventarioActivo, getScopeProductos,
   getZonas, crearZona as dbCrearZona,
   finalizarZona as dbFinalizarZona,
   finalizarInventario as dbFinalizarInventario,
@@ -62,11 +62,9 @@ export default function CounterApp() {
     }
     setInvLoading(true); setInv(null); setZonas([])
     try {
-      const [invData, total] = await Promise.all([
-        getInventarioActivo(deposito_id),
-        getTotalProductos(),
-      ])
+      const invData = await getInventarioActivo(deposito_id)
       if (invData) {
+        const total = await getScopeProductos(invData.id)
         const newInv = {
           ...invData,
           total_productos: total,

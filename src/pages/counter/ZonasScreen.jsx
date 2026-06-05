@@ -48,15 +48,15 @@ export default function ZonasScreen({ inv, zonas, onBack, onZonaSelect, onCrearZ
 
       {/* header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 14px', paddingTop: 'max(env(safe-area-inset-top),12px)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
             <button onClick={onBack} style={{ background: B, border: 'none', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: 22, flexShrink: 0 }}>‹</button>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.2 }}>{inv.nombre}</div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>{inv.sucursal}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.nombre}</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.sucursal}</div>
             </div>
           </div>
-          <div style={{ background: GL, border: '1px solid #6EE7B7', padding: '4px 10px', fontSize: 10, fontWeight: 700, color: GD, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <div style={{ background: GL, border: '1px solid #6EE7B7', padding: '4px 10px', fontSize: 10, fontWeight: 700, color: GD, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
             {inv.estado}
           </div>
         </div>

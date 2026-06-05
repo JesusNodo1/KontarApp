@@ -4,9 +4,9 @@ import { enviarAjustesInventario, enviarAjustesInventarioDemo, getAjustesEnviado
 import { useAuth } from '../../context/AuthContext'
 import Spinner from '../../components/Spinner'
 
-// Demo activado por default mientras no esté la tabla ajustes_enviados ni el Edge Function final deployado.
-// Cambialo a false (o usá el toggle en el panel) cuando quieras probar el envío real.
-const DEMO_DEFAULT = true
+// Por default se envía al ERP real. El admin puede activar el toggle "Modo demo"
+// al lado del botón si quiere simular antes de mandar de verdad.
+const DEMO_DEFAULT = false
 
 /**
  * Panel para enviar al ERP los ajustes del inventario (cerrado).
@@ -153,8 +153,8 @@ export default function EnvioAjustesPanel({ inventario, data }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderTop: `3px solid ${demo ? '#F59E0B' : B}`, marginBottom: 14, padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', letterSpacing: '0.02em' }}>Enviar ajustes al ERP</div>
             {demo && (
               <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', padding: '1px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
@@ -165,29 +165,49 @@ export default function EnvioAjustesPanel({ inventario, data }) {
           <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
             <b style={{ color: G }}>{yaEnviados}</b> enviados · <b style={{ color: pendientes > 0 ? '#92400E' : '#6B7280' }}>{pendientes}</b> pendientes · {totalAjustables} con diferencia
           </div>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6B7280', marginTop: 6, cursor: enviando ? 'not-allowed' : 'pointer' }}>
-            <input type="checkbox" checked={demo} disabled={enviando} onChange={e => setDemo(e.target.checked)} />
-            Modo demo (simulado, sin tocar el ERP ni la DB)
-          </label>
         </div>
-        <button
-          onClick={handleEnviar}
-          disabled={enviando || aEnviar === 0}
-          style={{
-            height: 38, padding: '0 16px',
-            background: (enviando || aEnviar === 0) ? '#F3F4F6' : G,
-            border: 'none',
-            color: (enviando || aEnviar === 0) ? '#9CA3AF' : '#fff',
-            fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', textTransform: 'uppercase',
-            cursor: (enviando || aEnviar === 0) ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}
-        >
-          {enviando ? <><Spinner /> Enviando ({progress?.index ?? 0}/{progress?.total ?? 0})…</> :
-           pendientes === 0 ? '✓ Todo enviado' :
-           modoSel ? `Enviar ${seleccionados} seleccionado${seleccionados !== 1 ? 's' : ''}` :
-                     `Enviar ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <label
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 12, fontWeight: 600,
+              color: demo ? '#92400E' : '#6B7280',
+              background: demo ? '#FEF3C7' : '#F9FAFB',
+              border: `1px solid ${demo ? '#FDE68A' : '#E5E7EB'}`,
+              padding: '7px 10px',
+              cursor: enviando ? 'not-allowed' : 'pointer',
+              userSelect: 'none',
+            }}
+            title="Si lo activás, simula el envío sin tocar el ERP ni la base."
+          >
+            <input
+              type="checkbox"
+              checked={demo}
+              disabled={enviando}
+              onChange={e => setDemo(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: enviando ? 'not-allowed' : 'pointer', accentColor: '#F59E0B' }}
+            />
+            Modo demo
+          </label>
+          <button
+            onClick={handleEnviar}
+            disabled={enviando || aEnviar === 0}
+            style={{
+              height: 38, padding: '0 16px',
+              background: (enviando || aEnviar === 0) ? '#F3F4F6' : G,
+              border: 'none',
+              color: (enviando || aEnviar === 0) ? '#9CA3AF' : '#fff',
+              fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', textTransform: 'uppercase',
+              cursor: (enviando || aEnviar === 0) ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}
+          >
+            {enviando ? <><Spinner /> Enviando ({progress?.index ?? 0}/{progress?.total ?? 0})…</> :
+             pendientes === 0 ? '✓ Todo enviado' :
+             modoSel ? `Enviar ${seleccionados} seleccionado${seleccionados !== 1 ? 's' : ''}` :
+                       `Enviar ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`}
+          </button>
+        </div>
       </div>
 
       {/* Selector de productos pendientes */}

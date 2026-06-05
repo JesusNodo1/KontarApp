@@ -72,6 +72,7 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   const [camLast,    setCamLast]    = useState(null)
   const [dupWarning, setDupWarning] = useState(null)  // { prod, existente, nueva }
   const [scopeWarning, setScopeWarning] = useState(null) // { prod, onContinue } — producto fuera del alcance
+  const [finalizarConfirm, setFinalizarConfirm] = useState(false) // muestra el modal de confirmar cierre de zona
   const scopeRef     = useRef(null)   // Set de producto_ids del alcance (null = sin restricción)
   const scopeWarnRef = useRef(false)  // true mientras hay un aviso de alcance abierto (frena la cámara)
   const [rView,      setRView]      = useState('unitario') // subvista reporte: 'unitario' | 'total'
@@ -559,10 +560,12 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
   }
 
   /* ── finalizar zona ── */
-  const handleFinalizarZona = async () => {
+  const handleFinalizarZona = () => setFinalizarConfirm(true)
+  const doFinalizarZona = async () => {
     setSaving(true)
     try {
       await onZonaFinalizada(zona.id)
+      setFinalizarConfirm(false)
       onBack()
     } catch (e) {
       alert(e.message)
@@ -653,13 +656,45 @@ export default function ConteoScreen({ zona, inv, onBack, onZonaFinalizada, user
         </div>
       )}
 
+      {/* ── Confirmar cierre de zona ── */}
+      {finalizarConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => !saving && setFinalizarConfirm(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
+          <div style={{ position: 'relative', background: '#fff', padding: '22px 18px', paddingBottom: 'max(env(safe-area-inset-bottom),22px)', borderTop: '4px solid #DC2626' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 36, height: 36, background: '#FEF2F2', border: '1.5px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.6" strokeLinecap="square"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 17, color: '#991B1B', letterSpacing: '0.01em' }}>¿Cerrar la zona?</div>
+            </div>
+            <div style={{ fontSize: 14, color: '#374151', marginBottom: 8, paddingLeft: 46, lineHeight: 1.4 }}>
+              Vas a finalizar <b style={{ color: '#111827' }}>{zona.nombre}</b>.
+            </div>
+            <div style={{ fontSize: 13, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 12px', marginBottom: 16, marginLeft: 46, lineHeight: 1.45 }}>
+              <b>Una vez cerrada NO vas a poder agregar más conteos.</b> Asegurate de haber escaneado todo antes de continuar.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setFinalizarConfirm(false)} disabled={saving} style={{ flex: 1, padding: '15px 0', background: '#F3F4F6', border: 'none', fontWeight: 700, fontSize: 13, color: '#374151', cursor: saving ? 'not-allowed' : 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Cancelar
+              </button>
+              <button onClick={doFinalizarZona} disabled={saving} style={{ flex: 2, padding: '15px 0', background: saving ? '#FCA5A5' : '#DC2626', border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                {saving ? <><Spinner /> Cerrando...</> : <>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="square"><rect x={3} y={11} width={18} height={11}/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  Sí, cerrar zona
+                </>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 14px', paddingTop: 'max(env(safe-area-inset-top),12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '12px 14px', paddingTop: 'max(env(safe-area-inset-top),12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
           <button onClick={handleBack} style={{ background: B, border: 'none', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: 22, flexShrink: 0 }}>‹</button>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.2 }}>{sub === 'reporte' ? 'Productos contados' : zona.nombre}</div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>{sub === 'reporte' ? `${conteos.length} items · ${totalU} uds.` : inv.sucursal}</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub === 'reporte' ? 'Productos contados' : zona.nombre}</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub === 'reporte' ? `${conteos.length} items · ${totalU} uds.` : inv.sucursal}</div>
           </div>
         </div>
         <button
