@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { logout as doLogout, getDeviceId } from '../../services/auth'
 import {
-  getInventarioActivo, getScopeProductos,
+  getInventariosActivos, getScopeProductos,
   getZonas, crearZona as dbCrearZona,
   finalizarZona as dbFinalizarZona,
   finalizarInventario as dbFinalizarInventario,
@@ -24,10 +24,11 @@ const ROOT = {
 }
 
 export default function CounterApp() {
-  const [screen,     setScreen]     = useState('inventario')
-  const [inv,        setInv]        = useState(null)
-  const [invLoading, setInvLoading] = useState(false)
-  const [zonas,      setZonas]      = useState([])
+  const [screen,        setScreen]        = useState('inventario')
+  const [inv,           setInv]           = useState(null)
+  const [inventarios,   setInventarios]   = useState([])   // abiertos visibles para el contador en el depósito
+  const [invLoading,    setInvLoading]    = useState(false)
+  const [zonas,         setZonas]         = useState([])
   const [zonaActiva, setZonaActiva] = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
@@ -53,36 +54,66 @@ export default function CounterApp() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  /* ─── Cargar inventario por depósito ─────────────────────────── */
-  const loadInventario = useCallback(async (deposito_id, onComplete = null) => {
+  /* ─── Aplicar un inventario (cargar scope + zonas) ───────────── */
+  const applyInventario = useCallback(async (invData, deposito_id, onComplete = null) => {
+    const total = await getScopeProductos(invData.id)
+    const newInv = {
+      ...invData,
+      total_productos: total,
+      fecha_inicio: fmtFecha(invData.fecha_inicio),
+      fecha_limite: fmtFecha(invData.fecha_limite),
+    }
+    setInv(newInv)
+    const zonasData = await getZonas(invData.id, deposito_id)
+    setZonas(zonasData)
+    if (onComplete) onComplete(newInv, zonasData)
+    return { newInv, zonasData }
+  }, [])
+
+  /* ─── Cargar inventarios disponibles para un depósito ────────── */
+  const loadInventario = useCallback(async (deposito_id, onComplete = null, preferInvId = null) => {
     if (!deposito_id) {
-      setInv(null); setZonas([])
+      setInv(null); setZonas([]); setInventarios([])
       if (onComplete) onComplete(null, [])
       return
     }
     setInvLoading(true); setInv(null); setZonas([])
     try {
-      const invData = await getInventarioActivo(deposito_id)
-      if (invData) {
-        const total = await getScopeProductos(invData.id)
-        const newInv = {
-          ...invData,
-          total_productos: total,
-          fecha_inicio: fmtFecha(invData.fecha_inicio),
-          fecha_limite: fmtFecha(invData.fecha_limite),
-        }
-        setInv(newInv)
-        const zonasData = await getZonas(invData.id, deposito_id)
-        setZonas(zonasData)
-        if (onComplete) onComplete(newInv, zonasData)
+      const lista = await getInventariosActivos(deposito_id)
+      setInventarios(lista)
+      if (lista.length === 0) {
+        if (onComplete) onComplete(null, [])
+        return
+      }
+      // Si hay sólo uno → auto-selección. Si hay varios y el contador ya
+      // había elegido uno antes (preferInvId), respetamos esa elección.
+      let elegido = null
+      if (lista.length === 1) elegido = lista[0]
+      else if (preferInvId) elegido = lista.find(i => String(i.id) === String(preferInvId)) || null
+      if (elegido) {
+        await applyInventario(elegido, deposito_id, onComplete)
       } else {
+        // Hay más de uno y el contador todavía no eligió: deja que la UI muestre el selector.
         if (onComplete) onComplete(null, [])
       }
     } catch (e) {
       console.error('Error al cargar inventario:', e.message)
+      setInventarios([])
       if (onComplete) onComplete(null, [])
     } finally { setInvLoading(false) }
-  }, [])
+  }, [applyInventario])
+
+  /* ─── Seleccionar inventario manualmente (cuando hay varios) ── */
+  const selectInventario = useCallback(async (inv_id) => {
+    const invData = inventarios.find(i => String(i.id) === String(inv_id))
+    if (!invData) { setInv(null); setZonas([]); return }
+    setInvLoading(true)
+    try {
+      await applyInventario(invData, invData.deposito_id)
+    } catch (e) {
+      console.error('Error al seleccionar inventario:', e.message)
+    } finally { setInvLoading(false) }
+  }, [inventarios, applyInventario])
 
   /* ─── Refrescar zonas ────────────────────────────────────────── */
   const refreshZonas = useCallback(async () => {
@@ -97,13 +128,13 @@ export default function CounterApp() {
     const saved = sessionStorage.getItem(POS_KEY)
     if (!saved) return
     try {
-      const { screen: s, zonaId, depositoId } = JSON.parse(saved)
+      const { screen: s, zonaId, depositoId, invId } = JSON.parse(saved)
       if (!depositoId || s !== 'conteo' || !zonaId) { sessionStorage.removeItem(POS_KEY); return }
       loadInventario(depositoId, (loadedInv, loadedZonas) => {
         if (!loadedInv) return
         const z = loadedZonas.find(z => z.id === zonaId)
         if (z) { setZonaActiva(z); setScreen('conteo') }
-      })
+      }, invId || null)
     } catch { sessionStorage.removeItem(POS_KEY) }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -114,7 +145,7 @@ export default function CounterApp() {
       sessionStorage.removeItem(POS_KEY)
     } else if (screen === 'conteo' && inv && zonaActiva) {
       sessionStorage.setItem(POS_KEY, JSON.stringify({
-        screen, zonaId: zonaActiva.id, depositoId: inv.deposito_id,
+        screen, zonaId: zonaActiva.id, depositoId: inv.deposito_id, invId: inv.id,
       }))
     }
   }, [screen, zonaActiva, inv])
@@ -185,8 +216,10 @@ export default function CounterApp() {
       ) : (
         <InventarioScreen
           inv={inv} invLoading={invLoading} zonas={zonas}
+          inventarios={inventarios}
           sucursales={sucursales} depositos={depositos}
-          onDepositoSelect={loadInventario}
+          onDepositoSelect={(depId, preferInvId) => loadInventario(depId, null, preferInvId)}
+          onInventarioSelect={selectInventario}
           onEntrar={goConteo}
           onCrearZona={crearZona}
           onFinalizarInventario={handleFinalizarInventario}

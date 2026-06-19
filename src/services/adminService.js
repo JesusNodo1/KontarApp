@@ -53,21 +53,9 @@ export async function crearInventario({ nombre, sucursal, deposito, deposito_id,
   const { data: perfil } = await supabase.from('perfiles').select('cliente_id, rol').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
 
-  // Bloquear sólo si ya hay un inventario abierto sobre el mismo depósito.
-  // El contador resuelve por deposito_id, así que dos abiertos en el mismo
-  // depósito serían ambiguos. Distintos depósitos en la misma sucursal: OK.
-  let qAbierto = supabase
-    .from('inventarios')
-    .select('id, nombre')
-    .eq('cliente_id', perfil.cliente_id)
-    .eq('estado', 'abierto')
-    .eq('sucursal', sucursal)
-  qAbierto = deposito_id ? qAbierto.eq('deposito_id', deposito_id) : qAbierto.is('deposito_id', null)
-  const { data: abiertoPrevio } = await qAbierto.maybeSingle()
-  if (abiertoPrevio) {
-    const dest = deposito_id ? `el depósito "${deposito}"` : `la sucursal "${sucursal}" (sin depósito específico)`
-    throw new Error(`Ya hay un inventario abierto sobre ${dest}: "${abiertoPrevio.nombre}". Cerralo antes de crear uno nuevo.`)
-  }
+  // Se permiten múltiples inventarios abiertos sobre el mismo depósito (doble conteo
+  // de auditoría). La separación entre ellos pasa por asignar contadores distintos
+  // a cada uno desde el panel del inventario; el contador elige cuál usar.
 
   const { data: cli } = await supabase.from('clientes').select('fuente_sync').eq('id', perfil.cliente_id).maybeSingle()
 

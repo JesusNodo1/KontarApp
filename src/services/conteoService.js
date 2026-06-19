@@ -1,11 +1,12 @@
 import { supabase } from './supabase'
 
 /**
- * Inventario activo del cliente autenticado (el más reciente con estado 'abierto').
- * Si el inventario tiene contadores asignados en `inventario_asignaciones`, sólo lo
- * ven los perfiles listados. Si no tiene asignados, lo ve cualquier contador.
+ * Inventarios abiertos del cliente autenticado visibles para el contador actual,
+ * filtrados por depósito. Si un inventario tiene contadores asignados en
+ * `inventario_asignaciones`, sólo lo ven los perfiles listados. Si no tiene
+ * asignados, lo ve cualquier contador. Devuelve array ordenado por created_at desc.
  */
-export async function getInventarioActivo(deposito_id = null) {
+export async function getInventariosActivos(deposito_id = null) {
   let q = supabase
     .from('inventarios')
     .select('*, asignaciones:inventario_asignaciones(perfil_id)')
@@ -13,17 +14,22 @@ export async function getInventarioActivo(deposito_id = null) {
     .order('created_at', { ascending: false })
   if (deposito_id) q = q.eq('deposito_id', deposito_id)
   const { data } = await q
-  if (!data?.length) return null
+  if (!data?.length) return []
 
   const { data: { user } } = await supabase.auth.getUser()
   const uid = user?.id
-  const visible = data.find(inv => {
-    const ids = (inv.asignaciones || []).map(a => a.perfil_id)
-    return ids.length === 0 || ids.includes(uid)
-  })
-  if (!visible) return null
-  const { asignaciones, ...rest } = visible
-  return rest
+  return data
+    .filter(inv => {
+      const ids = (inv.asignaciones || []).map(a => a.perfil_id)
+      return ids.length === 0 || ids.includes(uid)
+    })
+    .map(({ asignaciones, ...rest }) => rest)
+}
+
+// Compatibilidad: devuelve el primero (más reciente) de la lista visible.
+export async function getInventarioActivo(deposito_id = null) {
+  const list = await getInventariosActivos(deposito_id)
+  return list[0] || null
 }
 
 /**

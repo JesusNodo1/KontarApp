@@ -51,8 +51,10 @@ function SelectRow({ icon, label, value, onChange, options, placeholder, disable
 
 export default function InventarioScreen({
   inv, invLoading, zonas,
+  inventarios = [],
   sucursales = [], depositos = [],
-  onDepositoSelect, onEntrar, onCrearZona, onFinalizarInventario,
+  onDepositoSelect, onInventarioSelect,
+  onEntrar, onCrearZona, onFinalizarInventario,
   user, deviceId, onLogout,
 }) {
   const [menuOpen,    setMenuOpen]    = useState(false)
@@ -75,7 +77,7 @@ export default function InventarioScreen({
       // Solo recargar si el inventario de ese depósito NO está ya en memoria.
       // Evita el flash de dimensiones al volver desde ConteoScreen.
       if (saved.deposito_id && inv?.deposito_id !== saved.deposito_id) {
-        onDepositoSelect(saved.deposito_id)
+        onDepositoSelect(saved.deposito_id, saved.inv_id || null)
       }
       if (saved.zonaId) setZonaId(saved.zonaId)
     } catch {}
@@ -89,9 +91,10 @@ export default function InventarioScreen({
       sucursal,
       deposito,
       deposito_id: dep?.id || null,
+      inv_id: inv?.id || null,
       zonaId,
     }))
-  }, [sucursal, deposito, zonaId, depositos])
+  }, [sucursal, deposito, zonaId, depositos, inv])
 
   /* ─── Validar zonaId cuando cambian las zonas ──────────────── */
   useEffect(() => {
@@ -157,6 +160,7 @@ export default function InventarioScreen({
   }
 
   const iconSuc  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  const iconInv  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1={12} y1="22.08" x2={12} y2={12}/></svg>
   const iconDep  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={1} y={3} width={15} height={13}/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
   const iconCal  = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><rect x={3} y={4} width={18} height={18}/><line x1={16} y1={2} x2={16} y2={6}/><line x1={8} y1={2} x2={8} y2={6}/><line x1={3} y1={10} x2={21} y2={10}/></svg>
   const iconResp = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={B} strokeWidth="2.2" strokeLinecap="square"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx={12} cy={7} r={4}/></svg>
@@ -220,7 +224,7 @@ export default function InventarioScreen({
               <Spinner />
               <span style={{ fontSize: 12, color: '#6B7280' }}>Buscando inventario activo...</span>
             </div>
-          ) : !inv ? (
+          ) : inventarios.length === 0 ? (
             <div style={{ padding: '8px 12px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="square" style={{ flexShrink: 0 }}>
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -230,10 +234,22 @@ export default function InventarioScreen({
             </div>
           ) : (
             <>
-              <InfoRow icon={iconCal}  label="Período"     value={`${inv.fecha_inicio} → ${inv.fecha_limite}`} />
-              <InfoRow icon={iconResp} label="Responsable" value={inv.responsable} />
+              {inventarios.length > 1 && (
+                <SelectRow
+                  icon={iconInv}
+                  label="Inventario"
+                  value={inv ? String(inv.id) : ''}
+                  onChange={val => onInventarioSelect && onInventarioSelect(val)}
+                  options={inventarios.map(i => ({ value: String(i.id), label: i.nombre }))}
+                  placeholder="Elegí un inventario..."
+                />
+              )}
+              {inv ? (
+                <>
+                  <InfoRow icon={iconCal}  label="Período"     value={`${inv.fecha_inicio} → ${inv.fecha_limite}`} />
+                  <InfoRow icon={iconResp} label="Responsable" value={inv.responsable} />
 
-              {/* Zona */}
+                  {/* Zona */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px' }}>
                 <div style={{ width: 28, height: 28, background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {iconZona}
@@ -271,6 +287,12 @@ export default function InventarioScreen({
                   </div>
                 </div>
               </div>
+                </>
+              ) : (
+                <div style={{ padding: '8px 12px', background: BL, borderBottom: '1px solid #E5E7EB', fontSize: 12, color: B, fontWeight: 600 }}>
+                  Elegí un inventario de la lista
+                </div>
+              )}
             </>
           )
         )}
