@@ -53,16 +53,20 @@ export async function crearInventario({ nombre, sucursal, deposito, deposito_id,
   const { data: perfil } = await supabase.from('perfiles').select('cliente_id, rol').eq('id', user.id).maybeSingle()
   if (!perfil) throw new Error('No se encontró el perfil del usuario.')
 
-  // Bloquear si la sucursal ya tiene un inventario abierto.
-  const { data: abiertoPrevio } = await supabase
+  // Bloquear sólo si ya hay un inventario abierto sobre el mismo depósito.
+  // El contador resuelve por deposito_id, así que dos abiertos en el mismo
+  // depósito serían ambiguos. Distintos depósitos en la misma sucursal: OK.
+  let qAbierto = supabase
     .from('inventarios')
     .select('id, nombre')
     .eq('cliente_id', perfil.cliente_id)
     .eq('estado', 'abierto')
     .eq('sucursal', sucursal)
-    .maybeSingle()
+  qAbierto = deposito_id ? qAbierto.eq('deposito_id', deposito_id) : qAbierto.is('deposito_id', null)
+  const { data: abiertoPrevio } = await qAbierto.maybeSingle()
   if (abiertoPrevio) {
-    throw new Error(`La sucursal "${sucursal}" ya tiene un inventario abierto: "${abiertoPrevio.nombre}". Cerralo antes de crear uno nuevo.`)
+    const dest = deposito_id ? `el depósito "${deposito}"` : `la sucursal "${sucursal}" (sin depósito específico)`
+    throw new Error(`Ya hay un inventario abierto sobre ${dest}: "${abiertoPrevio.nombre}". Cerralo antes de crear uno nuevo.`)
   }
 
   const { data: cli } = await supabase.from('clientes').select('fuente_sync').eq('id', perfil.cliente_id).maybeSingle()
@@ -506,6 +510,59 @@ export async function getAdmins() {
     .eq('rol', 'admin')
     .order('nombre')
   return data || []
+}
+
+// ── Contadores (para asignar a un inventario) ───────────────
+export async function getContadores() {
+  const { data } = await supabase
+    .from('perfiles')
+    .select('id, nombre')
+    .eq('rol', 'contador')
+    .order('nombre')
+  return data || []
+}
+
+// ── Asignación de contadores a un inventario ───────────────
+// Si un inventario no tiene filas en inventario_asignaciones, lo ven todos los
+// contadores del cliente. Si tiene filas, sólo lo ven los perfiles listados.
+export async function getInventarioAsignados(inventario_id) {
+  const { data } = await supabase
+    .from('inventario_asignaciones')
+    .select('perfil_id')
+    .eq('inventario_id', inventario_id)
+  return (data || []).map(r => r.perfil_id)
+}
+
+export async function setInventarioAsignados(inventario_id, perfil_ids) {
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: perfil } = await supabase.from('perfiles').select('cliente_id').eq('id', user.id).maybeSingle()
+  if (!perfil) throw new Error('No se encontró el perfil del usuario.')
+
+  // Reemplazo completo: borrar lo que ya no está, insertar lo nuevo.
+  const idsDeseados = [...new Set(perfil_ids || [])]
+  const { data: actuales } = await supabase
+    .from('inventario_asignaciones')
+    .select('perfil_id')
+    .eq('inventario_id', inventario_id)
+  const setActuales = new Set((actuales || []).map(r => r.perfil_id))
+  const setDeseados = new Set(idsDeseados)
+
+  const aBorrar    = [...setActuales].filter(id => !setDeseados.has(id))
+  const aInsertar  = [...setDeseados].filter(id => !setActuales.has(id))
+
+  if (aBorrar.length) {
+    const { error } = await supabase
+      .from('inventario_asignaciones')
+      .delete()
+      .eq('inventario_id', inventario_id)
+      .in('perfil_id', aBorrar)
+    if (error) throw new Error(error.message)
+  }
+  if (aInsertar.length) {
+    const filas = aInsertar.map(pid => ({ inventario_id, perfil_id: pid, cliente_id: perfil.cliente_id }))
+    const { error } = await supabase.from('inventario_asignaciones').insert(filas)
+    if (error) throw new Error(error.message)
+  }
 }
 
 // ── Sucursales ───────────────────────────────────────────────

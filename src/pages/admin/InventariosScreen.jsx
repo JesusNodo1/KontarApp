@@ -5,6 +5,7 @@ import {
   getInventarios, cerrarInventario,
   getInventarioStats, getInventarioDetalle, getZonaDetalle,
   getStockTeoricoStatus, getResumenValorizado,
+  getContadores, getInventarioAsignados, setInventarioAsignados,
 } from '../../services/adminService'
 import { fmtFecha } from '../../services/conteoService'
 import Spinner from '../../components/Spinner'
@@ -58,6 +59,13 @@ export default function InventariosScreen() {
   const [zonaConteos,    setZonaConteos]    = useState({})     // { zona_id: [...conteos] }
   const [zonaLoading,    setZonaLoading]    = useState(null)   // zona_id cargando
 
+  // ── asignación de contadores al inventario abierto ──────────
+  const [contadores,        setContadores]        = useState([])           // perfiles rol=contador
+  const [asignados,         setAsignados]         = useState(new Set())    // perfil_ids tildados
+  const [asignadosInicial,  setAsignadosInicial]  = useState(new Set())
+  const [asignSaving,       setAsignSaving]       = useState(false)
+  const [asignMsg,          setAsignMsg]          = useState('')
+
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -78,6 +86,12 @@ export default function InventariosScreen() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    let alive = true
+    getContadores().then(list => { if (alive) setContadores(list) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // KPI global: % de diferencia ponderado por plata sobre los inventarios CERRADOS
   // del período elegido (suma de diferencias valorizadas / suma de teórico valorizado).
@@ -132,11 +146,43 @@ export default function InventariosScreen() {
     setDetalleLoading(true)
     setZonaAbierta(null)
     setZonaConteos({})
+    setAsignMsg('')
+    setAsignados(new Set())
+    setAsignadosInicial(new Set())
     try {
-      const d = await getInventarioDetalle(inv.id)
+      const [d, asig] = await Promise.all([
+        getInventarioDetalle(inv.id),
+        getInventarioAsignados(inv.id).catch(() => []),
+      ])
       setDetalleData(d)
+      const ids = new Set(asig)
+      setAsignados(ids)
+      setAsignadosInicial(new Set(ids))
     } finally {
       setDetalleLoading(false)
+    }
+  }
+
+  const toggleAsignado = (perfil_id) => {
+    setAsignados(prev => {
+      const n = new Set(prev)
+      n.has(perfil_id) ? n.delete(perfil_id) : n.add(perfil_id)
+      return n
+    })
+    setAsignMsg('')
+  }
+
+  const guardarAsignaciones = async () => {
+    if (!detalle) return
+    setAsignSaving(true); setAsignMsg('')
+    try {
+      await setInventarioAsignados(detalle.id, [...asignados])
+      setAsignadosInicial(new Set(asignados))
+      setAsignMsg('Asignaciones guardadas.')
+    } catch (e) {
+      setAsignMsg(`Error: ${e.message}`)
+    } finally {
+      setAsignSaving(false)
     }
   }
 
@@ -386,6 +432,57 @@ export default function InventariosScreen() {
                       </div>
                     ))}
                   </div>
+
+                  {/* contadores asignados (sólo inventarios abiertos) */}
+                  {detalle.estado === 'abierto' && (() => {
+                    const dirty = asignados.size !== asignadosInicial.size
+                      || [...asignados].some(id => !asignadosInicial.has(id))
+                    return (
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span>Contadores asignados {asignados.size > 0 ? `(${asignados.size})` : ''}</span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', letterSpacing: 0, textTransform: 'none' }}>
+                            {asignados.size === 0 ? 'Sin asignar → lo ven todos' : 'Sólo lo ven los seleccionados'}
+                          </span>
+                        </div>
+                        {contadores.length === 0 ? (
+                          <div style={{ padding: '14px', textAlign: 'center', color: '#9CA3AF', fontSize: 13, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                            No hay usuarios con rol contador.
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                              {contadores.map(c => {
+                                const on = asignados.has(c.id)
+                                return (
+                                  <div
+                                    key={c.id}
+                                    onClick={() => toggleAsignado(c.id)}
+                                    style={{ cursor: 'pointer', border: `2px solid ${on ? B : '#E5E7EB'}`, background: on ? BL : '#fff', padding: '9px 11px', display: 'flex', alignItems: 'center', gap: 9 }}
+                                  >
+                                    <div style={{ width: 18, height: 18, flexShrink: 0, border: `2px solid ${on ? B : '#D1D5DB'}`, background: on ? B : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      {on && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>}
+                                    </div>
+                                    <div style={{ minWidth: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
+                              <div style={{ fontSize: 12, color: asignMsg.startsWith('Error') ? '#DC2626' : '#065F46' }}>{asignMsg}</div>
+                              <button
+                                onClick={guardarAsignaciones}
+                                disabled={!dirty || asignSaving}
+                                style={{ padding: '8px 16px', background: (!dirty || asignSaving) ? '#93C5FD' : B, border: 'none', color: '#fff', fontWeight: 700, fontSize: 13, cursor: (!dirty || asignSaving) ? 'not-allowed' : 'pointer' }}
+                              >
+                                {asignSaving ? 'Guardando…' : 'Guardar asignaciones'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* zonas */}
                   <div style={{ marginBottom: 20 }}>

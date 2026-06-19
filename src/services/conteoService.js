@@ -1,18 +1,29 @@
 import { supabase } from './supabase'
 
 /**
- * Inventario activo del cliente autenticado (el más reciente con estado 'abierto')
+ * Inventario activo del cliente autenticado (el más reciente con estado 'abierto').
+ * Si el inventario tiene contadores asignados en `inventario_asignaciones`, sólo lo
+ * ven los perfiles listados. Si no tiene asignados, lo ve cualquier contador.
  */
 export async function getInventarioActivo(deposito_id = null) {
   let q = supabase
     .from('inventarios')
-    .select('*')
+    .select('*, asignaciones:inventario_asignaciones(perfil_id)')
     .eq('estado', 'abierto')
     .order('created_at', { ascending: false })
-    .limit(1)
   if (deposito_id) q = q.eq('deposito_id', deposito_id)
-  const { data } = await q.maybeSingle()
-  return data || null
+  const { data } = await q
+  if (!data?.length) return null
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const uid = user?.id
+  const visible = data.find(inv => {
+    const ids = (inv.asignaciones || []).map(a => a.perfil_id)
+    return ids.length === 0 || ids.includes(uid)
+  })
+  if (!visible) return null
+  const { asignaciones, ...rest } = visible
+  return rest
 }
 
 /**
