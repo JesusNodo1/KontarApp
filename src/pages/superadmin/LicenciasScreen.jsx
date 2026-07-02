@@ -20,7 +20,11 @@ function fmtFecha(iso) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const FORM_VACIO = { nombre_empresa: '', email_admin: '', nombre_admin: '', nombre_sucursal: '', nombre_deposito: '' }
+const FORM_VACIO = {
+  nombre_empresa: '', email_admin: '', nombre_admin: '',
+  nombre_sucursal: '', nombre_deposito: '',
+  api_habilitada: false, api_base_url: '', api_token: '',
+}
 
 export default function LicenciasScreen() {
   const [clientes,  setClientes]  = useState([])
@@ -57,6 +61,16 @@ export default function LicenciasScreen() {
     e.preventDefault()
     if (!form.nombre_empresa.trim() || !form.email_admin.trim()) { setFormErr('Nombre de empresa y email son requeridos.'); return }
     if (!form.email_admin.includes('@')) { setFormErr('Email inválido.'); return }
+    if (form.api_habilitada) {
+      if (!form.api_base_url.trim() || !form.api_token.trim()) {
+        setFormErr('Si activás la sincronización por API, la URL y el token son requeridos.')
+        return
+      }
+      if (!/^https?:\/\//i.test(form.api_base_url.trim())) {
+        setFormErr('La URL de la API debe empezar con http:// o https://')
+        return
+      }
+    }
     setSaving(true); setFormErr('')
     try {
       const result = await crearLicencia(form)
@@ -162,7 +176,18 @@ export default function LicenciasScreen() {
                   </svg>
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{c.nombre}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{c.nombre}</div>
+                    {c.api_configurada ? (
+                      <span style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        API
+                      </span>
+                    ) : (
+                      <span style={{ padding: '2px 8px', background: '#F3F4F6', color: '#6B7280', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        Manual
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
                     Desde {fmtFecha(c.created_at)} · {c.usuarios} usuario{c.usuarios !== 1 ? 's' : ''} · {c.terminales} terminal{c.terminales !== 1 ? 'es' : ''}
                   </div>
@@ -264,6 +289,53 @@ export default function LicenciasScreen() {
                     </div>
                   ))}
 
+                  {/* Sección: Sincronización por API */}
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9CA3AF', borderBottom: '1px solid #F3F4F6', paddingBottom: 6, marginTop: 4 }}>Sincronización con ERP externo</div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.api_habilitada}
+                      onChange={e => setForm(p => ({ ...p, api_habilitada: e.target.checked }))}
+                      style={{ width: 18, height: 18, accentColor: B, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                      Este cliente se conecta a un ERP externo por API
+                    </span>
+                  </label>
+
+                  {form.api_habilitada && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingLeft: 28, borderLeft: `2px solid ${BL}` }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>URL BASE DE LA API *</label>
+                        <input
+                          type="text" autoComplete="off"
+                          value={form.api_base_url}
+                          onChange={e => setForm(p => ({ ...p, api_base_url: e.target.value }))}
+                          placeholder="https://api.empresa.com/sql"
+                          style={inputStyle}
+                          onFocus={e => e.target.style.borderColor = B}
+                          onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>TOKEN (BEARER) *</label>
+                        <input
+                          type="password" autoComplete="off"
+                          value={form.api_token}
+                          onChange={e => setForm(p => ({ ...p, api_token: e.target.value }))}
+                          placeholder="Pegar el token aquí"
+                          style={{ ...inputStyle, fontFamily: "'DM Mono', monospace" }}
+                          onFocus={e => e.target.style.borderColor = B}
+                          onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                        />
+                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+                          El token se guarda de forma protegida y no se vuelve a exponer al superadmin después.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', fontSize: 13, color: '#166534' }}>
                     ✓ Se generará un código de activación y contraseña aleatorios. También se creará automáticamente el usuario de soporte (<strong>SoporteNodo</strong>) vinculado a este cliente.
                   </div>
@@ -314,6 +386,7 @@ export default function LicenciasScreen() {
                       { label: 'Admin',      value: `${form.nombre_admin?.trim() || 'Admin'} · ${created.email}` },
                       { label: 'Sucursal',   value: created.sucursal?.nombre },
                       { label: 'Depósito',   value: created.deposito?.nombre },
+                      { label: 'Sincronización', value: created.cliente?.api_configurada ? 'API externa · activa' : 'Manual (Excel / carga a mano)' },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
                         <span style={{ color: '#6B7280', fontWeight: 600 }}>{label}</span>
