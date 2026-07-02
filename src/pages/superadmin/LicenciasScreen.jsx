@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente, resetPassword } from '../../services/vendorService'
+import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente, resetPassword, testApiPreview, testApiSaved } from '../../services/vendorService'
 import { B, BL } from '../../constants/theme'
 
 const ROL_LABEL = { admin: 'Admin', contador: 'Contador', superadmin: 'Superadmin' }
@@ -47,6 +47,15 @@ export default function LicenciasScreen() {
   const [resetting,  setResetting]  = useState(null)  // user_id en proceso
   const [resetResult, setResetResult] = useState({})  // { [user_id]: newPassword }
 
+  // Test de conexión (preview: durante alta)
+  const [previewTesting, setPreviewTesting] = useState(false)
+  const [previewTest,    setPreviewTest]    = useState(null)  // { ok, resultados } | { error }
+
+  // Test de conexión (saved: cliente existente)
+  const [savedTestCliente, setSavedTestCliente] = useState(null)   // objeto cliente completo
+  const [savedTesting,     setSavedTesting]     = useState(false)
+  const [savedTest,        setSavedTest]        = useState(null)   // { ok, resultados } | { error }
+
   const loadData = useCallback(async () => {
     setLoading(true); setError('')
     try { setClientes(await getLicencias()) }
@@ -55,6 +64,17 @@ export default function LicenciasScreen() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  /* ── Test de conexión (preview) ── */
+  const handleTestPreview = async () => {
+    setPreviewTest(null); setPreviewTesting(true)
+    try {
+      const r = await testApiPreview(form.api_base_url.trim(), form.api_token.trim())
+      setPreviewTest(r)
+    } catch (e) {
+      setPreviewTest({ error: e.message })
+    } finally { setPreviewTesting(false) }
+  }
 
   /* ── Crear ── */
   const handleCrear = async e => {
@@ -70,6 +90,12 @@ export default function LicenciasScreen() {
         setFormErr('La URL de la API debe empezar con http:// o https://')
         return
       }
+      // Advisory: si el test se corrió y falló, confirmar antes de crear.
+      const testFallo = previewTest && (previewTest.error || previewTest.ok === false)
+      if (testFallo) {
+        const seguir = window.confirm('El test de conexión falló. ¿Crear el cliente igual? Después vas a poder volver a probar desde la ficha del cliente.')
+        if (!seguir) return
+      }
     }
     setSaving(true); setFormErr('')
     try {
@@ -80,7 +106,29 @@ export default function LicenciasScreen() {
     finally { setSaving(false) }
   }
 
-  const cerrarModalCrear = () => { setShowCrear(false); setForm(FORM_VACIO); setFormErr(''); setCreated(null) }
+  /* ── Test de conexión (saved) ── */
+  const abrirTestSaved = (cliente) => {
+    setSavedTestCliente(cliente); setSavedTest(null)
+  }
+  const cerrarTestSaved = () => {
+    setSavedTestCliente(null); setSavedTest(null); setSavedTesting(false)
+  }
+  const handleTestSaved = async () => {
+    if (!savedTestCliente) return
+    setSavedTest(null); setSavedTesting(true)
+    try {
+      const r = await testApiSaved(savedTestCliente.id)
+      setSavedTest(r)
+      await loadData()   // refresca ultimo_test_ok/error en la card
+    } catch (e) {
+      setSavedTest({ error: e.message })
+    } finally { setSavedTesting(false) }
+  }
+
+  const cerrarModalCrear = () => {
+    setShowCrear(false); setForm(FORM_VACIO); setFormErr(''); setCreated(null)
+    setPreviewTest(null); setPreviewTesting(false)
+  }
 
   /* ── Toggle ── */
   const handleToggle = async (lic) => {
@@ -178,28 +226,55 @@ export default function LicenciasScreen() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{c.nombre}</div>
-                    {c.api_configurada ? (
-                      <span style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        API
-                      </span>
-                    ) : (
-                      <span style={{ padding: '2px 8px', background: '#F3F4F6', color: '#6B7280', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        Manual
-                      </span>
-                    )}
+                    {(() => {
+                      if (!c.api_configurada) return (
+                        <span style={{ padding: '2px 8px', background: '#F3F4F6', color: '#6B7280', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Manual</span>
+                      )
+                      // API configurada: variantes según último test
+                      if (c.api_ultimo_test_error) return (
+                        <span style={{ padding: '2px 8px', background: '#FFF7ED', color: '#B45309', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                              title={`Último test falló: ${c.api_ultimo_test_error}`}>
+                          API ⚠
+                        </span>
+                      )
+                      if (c.api_ultimo_test_ok) return (
+                        <span style={{ padding: '2px 8px', background: '#D1FAE5', color: '#059669', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                              title={`Último test OK: ${fmtFecha(c.api_ultimo_test_ok)}`}>
+                          API ✓
+                        </span>
+                      )
+                      return (
+                        <span style={{ padding: '2px 8px', background: '#EFF6FF', color: '#1D4ED8', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+                              title="API configurada · sin probar aún">
+                          API
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
                     Desde {fmtFecha(c.created_at)} · {c.usuarios} usuario{c.usuarios !== 1 ? 's' : ''} · {c.terminales} terminal{c.terminales !== 1 ? 'es' : ''}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => abrirUsuarios(c)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
-              >
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx={9} cy={7} r={4}/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                Ver usuarios
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {c.api_configurada && (
+                  <button
+                    onClick={() => abrirTestSaved(c)}
+                    title="Probar la conexión a la API del cliente"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: BL, border: `1px solid ${B}`, fontSize: 12, fontWeight: 700, color: B, cursor: 'pointer' }}
+                  >
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                    Probar API
+                  </button>
+                )}
+                <button
+                  onClick={() => abrirUsuarios(c)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+                >
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx={9} cy={7} r={4}/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  Ver usuarios
+                </button>
+              </div>
             </div>
 
             {/* Licencias */}
@@ -311,7 +386,7 @@ export default function LicenciasScreen() {
                         <input
                           type="text" autoComplete="off"
                           value={form.api_base_url}
-                          onChange={e => setForm(p => ({ ...p, api_base_url: e.target.value }))}
+                          onChange={e => { setForm(p => ({ ...p, api_base_url: e.target.value })); setPreviewTest(null) }}
                           placeholder="https://api.empresa.com/sql"
                           style={inputStyle}
                           onFocus={e => e.target.style.borderColor = B}
@@ -323,7 +398,7 @@ export default function LicenciasScreen() {
                         <input
                           type="password" autoComplete="off"
                           value={form.api_token}
-                          onChange={e => setForm(p => ({ ...p, api_token: e.target.value }))}
+                          onChange={e => { setForm(p => ({ ...p, api_token: e.target.value })); setPreviewTest(null) }}
                           placeholder="Pegar el token aquí"
                           style={{ ...inputStyle, fontFamily: "'DM Mono', monospace" }}
                           onFocus={e => e.target.style.borderColor = B}
@@ -333,6 +408,52 @@ export default function LicenciasScreen() {
                           El token se guarda de forma protegida y no se vuelve a exponer al superadmin después.
                         </div>
                       </div>
+
+                      {/* Probar conexión */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={handleTestPreview}
+                          disabled={previewTesting || !form.api_base_url.trim() || !form.api_token.trim()}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '8px 14px',
+                            background: previewTesting ? '#F3F4F6' : BL,
+                            border: `1px solid ${B}`, color: B,
+                            fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                            cursor: (previewTesting || !form.api_base_url.trim() || !form.api_token.trim()) ? 'not-allowed' : 'pointer',
+                            opacity: (!form.api_base_url.trim() || !form.api_token.trim()) ? 0.5 : 1,
+                          }}
+                        >
+                          {previewTesting
+                            ? <><Spin size={12} color={B} /> Probando...</>
+                            : <><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg> Probar conexión</>
+                          }
+                        </button>
+                        {previewTest?.error && (
+                          <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>✕ {previewTest.error}</span>
+                        )}
+                        {previewTest && !previewTest.error && (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: previewTest.ok ? '#059669' : '#DC2626' }}>
+                            {previewTest.ok ? '✓ Conexión OK' : '✕ Algunas pruebas fallaron'}
+                          </span>
+                        )}
+                      </div>
+
+                      {previewTest?.resultados && (
+                        <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {previewTest.resultados.map(r => (
+                            <div key={r.reporte} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                              <span style={{ color: r.ok ? '#059669' : '#DC2626', fontWeight: 700, width: 14 }}>{r.ok ? '✓' : '✕'}</span>
+                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: '#374151', flex: 1 }}>{r.reporte}</span>
+                              {r.ok
+                                ? <span style={{ color: '#6B7280' }}>{r.filas} filas · {r.ms}ms</span>
+                                : <span style={{ color: '#DC2626', fontWeight: 600 }}>{r.error}</span>
+                              }
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -501,6 +622,93 @@ export default function LicenciasScreen() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal test API (cliente existente) ══ */}
+      {savedTestCliente && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Prueba de conexión</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{savedTestCliente.nombre}</div>
+              </div>
+              <button onClick={cerrarTestSaved} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280', lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 12px', fontSize: 12, color: '#374151' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                  <span style={{ color: '#6B7280', fontWeight: 600 }}>URL</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{savedTestCliente.api_base_url || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Token</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11 }}>••••••••</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Adaptador</span>
+                  <span style={{ fontSize: 11 }}>{savedTestCliente.api_tipo || 'kontar'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                  <span style={{ color: '#6B7280', fontWeight: 600 }}>Último test OK</span>
+                  <span style={{ fontSize: 11, color: savedTestCliente.api_ultimo_test_ok ? '#059669' : '#9CA3AF' }}>
+                    {savedTestCliente.api_ultimo_test_ok ? fmtFecha(savedTestCliente.api_ultimo_test_ok) : '—'}
+                  </span>
+                </div>
+                {savedTestCliente.api_ultimo_test_error && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                    <span style={{ color: '#6B7280', fontWeight: 600 }}>Último error</span>
+                    <span style={{ fontSize: 11, color: '#DC2626' }}>{savedTestCliente.api_ultimo_test_error}</span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleTestSaved}
+                disabled={savedTesting}
+                style={{
+                  padding: '11px 0', background: savedTesting ? `${B}99` : B,
+                  border: 'none', color: '#fff', fontWeight: 700, fontSize: 13,
+                  cursor: savedTesting ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}
+              >
+                {savedTesting
+                  ? <><Spin size={14} color="#fff" /> Probando...</>
+                  : 'Ejecutar prueba'
+                }
+              </button>
+
+              {savedTest?.error && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626', fontWeight: 500 }}>
+                  ✕ {savedTest.error}
+                </div>
+              )}
+
+              {savedTest && !savedTest.error && (
+                <>
+                  <div style={{ padding: '10px 14px', background: savedTest.ok ? '#D1FAE5' : '#FEE2E2', border: `1px solid ${savedTest.ok ? '#6EE7B7' : '#FECACA'}`, fontSize: 13, fontWeight: 700, color: savedTest.ok ? '#059669' : '#DC2626' }}>
+                    {savedTest.ok ? '✓ Conexión OK · las 4 pruebas de lectura pasaron' : '✕ Algunas pruebas fallaron'}
+                  </div>
+                  <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {savedTest.resultados.map(r => (
+                      <div key={r.reporte} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                        <span style={{ color: r.ok ? '#059669' : '#DC2626', fontWeight: 700, width: 14 }}>{r.ok ? '✓' : '✕'}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: '#374151', flex: 1 }}>{r.reporte}</span>
+                        {r.ok
+                          ? <span style={{ color: '#6B7280' }}>{r.filas} filas · {r.ms}ms</span>
+                          : <span style={{ color: '#DC2626', fontWeight: 600 }}>{r.error}</span>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
