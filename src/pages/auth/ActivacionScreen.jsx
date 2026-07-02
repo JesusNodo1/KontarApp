@@ -17,7 +17,10 @@ export default function ActivacionScreen() {
     if (!codigo.trim()) { setError('Ingresá el código de licencia.'); return }
     setError(''); setLoading(true)
     try {
-      await activarTerminal(codigo)
+      // Si hay sesión, el código de licencia tiene que pertenecer al cliente
+      // del usuario logueado. Sin sesión no se puede validar el match, se hará
+      // en el siguiente login.
+      await activarTerminal(codigo, user?.cliente_id ?? null)
       // Si ya hay sesión, ir directo a la app; si no, al login
       if (user) {
         navigate(user.rol === 'admin' ? '/admin' : '/contador', { replace: true })

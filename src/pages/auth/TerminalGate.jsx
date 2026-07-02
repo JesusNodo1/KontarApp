@@ -11,7 +11,10 @@ export default function TerminalGate() {
   useEffect(() => {
     getDeviceId()
 
-    checkTerminal()
+    // Cuando hay sesión activa, exigimos que la terminal esté vinculada al
+    // cliente del usuario. Sin sesión, sólo miramos existencia (el filtro por
+    // cliente se aplica después, al loguearse).
+    checkTerminal(user?.cliente_id ?? null)
       .then(registered => {
         if (!registered) { setStatus('unregistered'); return }
         if (user) {

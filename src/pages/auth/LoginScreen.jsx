@@ -36,7 +36,7 @@ export default function LoginScreen() {
         navigate('/soporte/select', { replace: true }); return
       }
       signIn(userData)
-      const activo = await checkTerminal()
+      const activo = await checkTerminal(userData.cliente_id)
       navigate(activo ? destino(userData.rol) : '/activate', { replace: true })
     } catch (err) {
       setError(err.message)

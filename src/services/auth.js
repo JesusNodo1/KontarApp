@@ -108,8 +108,13 @@ export async function login(email, password) {
 /**
  * Valida el código de licencia y activa la terminal en Supabase.
  * Usa fetch directo para evitar bloqueos del cliente supabase-js en React.
+ *
+ * @param {string} codigo             Código de licencia.
+ * @param {number|null} expectedClienteId  Si hay usuario logueado, cliente_id esperado.
+ *   El código de licencia debe pertenecer a ese cliente. Sirve para que un usuario
+ *   de cliente A no pueda activar la terminal con una licencia de cliente B.
  */
-export async function activarTerminal(codigo) {
+export async function activarTerminal(codigo, expectedClienteId = null) {
   const deviceId = getDeviceId()
   const codigoUp = codigo.trim().toUpperCase()
 
@@ -120,6 +125,9 @@ export async function activarTerminal(codigo) {
   const licencia = licencias?.[0]
   if (!licencia) throw new Error('Código de licencia inválido o expirado.')
   if (!licencia.activa) throw new Error('Esta licencia está desactivada.')
+  if (expectedClienteId != null && licencia.cliente_id !== expectedClienteId) {
+    throw new Error('Este código pertenece a otra empresa. Cerrá sesión e ingresá con las credenciales correspondientes al código.')
+  }
 
   // 2. Upsert terminal (on_conflict must be in URL for PostgREST)
   await restFetch('terminales?on_conflict=device_id', {
@@ -137,15 +145,21 @@ export async function activarTerminal(codigo) {
 }
 
 /**
- * Verifica si el device_id ya está registrado y activo en la DB.
+ * Verifica si el device_id está registrado y activo en la DB para el cliente dado.
  * Usa anon key — no requiere sesión.
+ *
+ * @param {number|null} clienteId  Si viene, exige que la terminal esté vinculada a
+ *   ese cliente. Sin esta comprobación, un usuario de cliente B podría entrar en
+ *   una terminal activada para cliente A sin tener que ingresar su propio código.
+ *   Si no viene (superadmin/soporte, o sin sesión aún), sólo valida existencia.
  * @returns {boolean}
  */
-export async function checkTerminal() {
+export async function checkTerminal(clienteId = null) {
   const deviceId = localStorage.getItem('_ktr_device_id')
   if (!deviceId) return false
+  const filtroCli = clienteId != null ? `&cliente_id=eq.${clienteId}` : ''
   const data = await restFetch(
-    `terminales?device_id=eq.${encodeURIComponent(deviceId)}&activa=eq.true&select=id&limit=1`
+    `terminales?device_id=eq.${encodeURIComponent(deviceId)}${filtroCli}&activa=eq.true&select=id&limit=1`
   )
   return Array.isArray(data) && data.length > 0
 }
