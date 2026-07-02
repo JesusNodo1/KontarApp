@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente, resetPassword, testApiPreview, testApiSaved } from '../../services/vendorService'
+import { getLicencias, crearLicencia, toggleLicencia, getUsuariosCliente, resetPassword, testApiPreview, testApiSaved, updateClienteApi } from '../../services/vendorService'
 import { B, BL } from '../../constants/theme'
 
 const ROL_LABEL = { admin: 'Admin', contador: 'Contador', superadmin: 'Superadmin' }
@@ -55,6 +55,12 @@ export default function LicenciasScreen() {
   const [savedTestCliente, setSavedTestCliente] = useState(null)   // objeto cliente completo
   const [savedTesting,     setSavedTesting]     = useState(false)
   const [savedTest,        setSavedTest]        = useState(null)   // { ok, resultados } | { error }
+
+  // Editar api_config (cliente existente)
+  const [editApiCliente, setEditApiCliente] = useState(null)
+  const [editApiForm,    setEditApiForm]    = useState({ base_url: '', token: '' })
+  const [editApiSaving,  setEditApiSaving]  = useState(false)
+  const [editApiErr,     setEditApiErr]     = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true); setError('')
@@ -123,6 +129,35 @@ export default function LicenciasScreen() {
     } catch (e) {
       setSavedTest({ error: e.message })
     } finally { setSavedTesting(false) }
+  }
+
+  /* ── Editar api_config (cliente existente) ── */
+  const abrirEditApi = (cliente) => {
+    setEditApiCliente(cliente)
+    setEditApiForm({ base_url: cliente.api_base_url || '', token: '' })
+    setEditApiErr('')
+  }
+  const cerrarEditApi = () => {
+    setEditApiCliente(null); setEditApiForm({ base_url: '', token: '' })
+    setEditApiErr(''); setEditApiSaving(false)
+  }
+  const handleGuardarEditApi = async e => {
+    e.preventDefault()
+    if (!editApiCliente) return
+    if (!editApiForm.base_url.trim()) { setEditApiErr('La URL es requerida.'); return }
+    if (!/^https?:\/\//i.test(editApiForm.base_url.trim())) {
+      setEditApiErr('La URL debe empezar con http:// o https://'); return
+    }
+    setEditApiSaving(true); setEditApiErr('')
+    try {
+      await updateClienteApi(editApiCliente.id, {
+        base_url: editApiForm.base_url.trim(),
+        token:    editApiForm.token.trim(),  // vacío = conservar
+      })
+      await loadData()
+      cerrarEditApi()
+    } catch (e) { setEditApiErr(e.message) }
+    finally { setEditApiSaving(false) }
   }
 
   const cerrarModalCrear = () => {
@@ -258,14 +293,24 @@ export default function LicenciasScreen() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {c.api_configurada && (
-                  <button
-                    onClick={() => abrirTestSaved(c)}
-                    title="Probar la conexión a la API del cliente"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: BL, border: `1px solid ${B}`, fontSize: 12, fontWeight: 700, color: B, cursor: 'pointer' }}
-                  >
-                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
-                    Probar API
-                  </button>
+                  <>
+                    <button
+                      onClick={() => abrirTestSaved(c)}
+                      title="Probar la conexión a la API del cliente"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: BL, border: `1px solid ${B}`, fontSize: 12, fontWeight: 700, color: B, cursor: 'pointer' }}
+                    >
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M20 6L9 17l-5-5"/></svg>
+                      Probar API
+                    </button>
+                    <button
+                      onClick={() => abrirEditApi(c)}
+                      title="Editar URL o rotar el token"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}
+                    >
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                      Editar API
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => abrirUsuarios(c)}
@@ -623,6 +668,73 @@ export default function LicenciasScreen() {
                 )
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal editar api_config ══ */}
+      {editApiCliente && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', borderTop: `3px solid ${B}` }}>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>Editar configuración de API</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{editApiCliente.nombre}</div>
+              </div>
+              <button onClick={cerrarEditApi} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#6B7280', lineHeight: 1 }}>×</button>
+            </div>
+
+            <form onSubmit={handleGuardarEditApi} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>URL BASE DE LA API *</label>
+                <input
+                  type="text" autoComplete="off"
+                  value={editApiForm.base_url}
+                  onChange={e => setEditApiForm(p => ({ ...p, base_url: e.target.value }))}
+                  placeholder="https://api.empresa.com/sql"
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
+                  NUEVO TOKEN <span style={{ color: '#9CA3AF', fontWeight: 500 }}>(opcional)</span>
+                </label>
+                <input
+                  type="password" autoComplete="off"
+                  value={editApiForm.token}
+                  onChange={e => setEditApiForm(p => ({ ...p, token: e.target.value }))}
+                  placeholder="Dejar en blanco para conservar el token actual"
+                  style={{ ...inputStyle, fontFamily: "'DM Mono', monospace" }}
+                  onFocus={e => e.target.style.borderColor = B}
+                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                />
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+                  Si dejás este campo vacío, el token no se modifica. Sólo escribí acá para rotarlo.
+                </div>
+              </div>
+
+              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', padding: '10px 14px', fontSize: 12, color: '#92400E' }}>
+                ⚠ Al guardar, el resultado del último test se limpia si cambia URL o token. Volvé a apretar "Probar API" para revalidar.
+              </div>
+
+              {editApiErr && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', padding: '10px 14px', fontSize: 13, color: '#DC2626', fontWeight: 500 }}>
+                  ✕ {editApiErr}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button type="button" onClick={cerrarEditApi} style={{ flex: 1, padding: '12px 0', background: '#F3F4F6', border: 'none', fontWeight: 600, fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={editApiSaving} style={{ flex: 2, padding: '12px 0', background: editApiSaving ? `${B}99` : B, border: 'none', fontWeight: 700, fontSize: 13, color: '#fff', cursor: editApiSaving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {editApiSaving ? <><Spin size={14} color="#fff" /> Guardando...</> : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

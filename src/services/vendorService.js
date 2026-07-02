@@ -49,3 +49,7 @@ export const testApiPreview      = (base_url, token, tipo = 'kontar') =>
   testFetch({ mode: 'preview', base_url, token, tipo })
 export const testApiSaved        = (cliente_id) =>
   testFetch({ mode: 'saved', cliente_id })
+
+// Editar api_config de un cliente. Si `token` viene vacío, conserva el actual.
+export const updateClienteApi    = (cliente_id, { base_url, token }) =>
+  vFetch('PATCH', '', { action: 'update_api', cliente_id, base_url, token })
