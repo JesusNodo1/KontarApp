@@ -106,41 +106,50 @@ export async function login(email, password) {
 }
 
 /**
- * Valida el código de licencia y activa la terminal en Supabase.
- * Usa fetch directo para evitar bloqueos del cliente supabase-js en React.
+ * Valida el código de licencia y activa/registra la terminal.
  *
- * @param {string} codigo             Código de licencia.
- * @param {number|null} expectedClienteId  Si hay usuario logueado, cliente_id esperado.
- *   El código de licencia debe pertenecer a ese cliente. Sirve para que un usuario
- *   de cliente A no pueda activar la terminal con una licencia de cliente B.
+ * La escritura pasa por el Edge Function `activate-terminal` (service_role)
+ * porque la RLS de `terminales` impide que un usuario del cliente B haga
+ * upsert sobre una fila que estaba vinculada al cliente A. El backend hace
+ * las mismas validaciones y encima usa UNIQUE (device_id, cliente_id): si
+ * el mismo dispositivo se activa para dos clientes distintos, coexisten
+ * las dos filas.
+ *
+ * @param {string} codigo Código de licencia.
+ * @param {number|null} expectedClienteId  Ignorado si no hay JWT. Cuando lo
+ *   hay, el backend valida contra el cliente del usuario. Se sigue pasando
+ *   para dar el error temprano en el cliente antes del roundtrip.
  */
 export async function activarTerminal(codigo, expectedClienteId = null) {
   const deviceId = getDeviceId()
   const codigoUp = codigo.trim().toUpperCase()
 
-  // 1. Buscar licencia
-  const licencias = await restFetch(
-    `licencias?codigo=eq.${encodeURIComponent(codigoUp)}&select=id,cliente_id,activa`
-  )
-  const licencia = licencias?.[0]
-  if (!licencia) throw new Error('Código de licencia inválido o expirado.')
-  if (!licencia.activa) throw new Error('Esta licencia está desactivada.')
-  if (expectedClienteId != null && licencia.cliente_id !== expectedClienteId) {
-    throw new Error('Este código pertenece a otra empresa. Cerrá sesión e ingresá con las credenciales correspondientes al código.')
+  // Validación temprana en el cliente (opcional, para evitar el roundtrip
+  // cuando ya sabemos que va a fallar). El backend igual valida.
+  if (expectedClienteId != null) {
+    const licencias = await restFetch(
+      `licencias?codigo=eq.${encodeURIComponent(codigoUp)}&select=cliente_id,activa`
+    )
+    const licencia = licencias?.[0]
+    if (!licencia) throw new Error('Código de licencia inválido o expirado.')
+    if (!licencia.activa) throw new Error('Esta licencia está desactivada.')
+    if (licencia.cliente_id !== expectedClienteId) {
+      throw new Error('Este código pertenece a otra empresa. Cerrá sesión e ingresá con las credenciales correspondientes al código.')
+    }
   }
 
-  // 2. Upsert terminal (on_conflict must be in URL for PostgREST)
-  await restFetch('terminales?on_conflict=device_id', {
+  const token = getAccessToken()
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/activate-terminal`, {
     method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({
-      device_id:   deviceId,
-      licencia_id: licencia.id,
-      cliente_id:  licencia.cliente_id,
-      activa:      true,
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ codigo: codigoUp, device_id: deviceId }),
   })
-
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
   return true
 }
 
