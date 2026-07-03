@@ -26,8 +26,8 @@ function fechaCorta(iso) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-// Guaraníes sin decimales con separador de miles
-const fmtGs = n => (Math.round(Number(n) || 0)).toLocaleString('es-PY')
+// Guaraníes con separador de miles y hasta 4 decimales cuando el valor no es entero.
+const fmtGs = n => (Number(n) || 0).toLocaleString('es-PY', { maximumFractionDigits: 4 })
 
 // Avance = productos contados / total teórico esperado. Sin teórico, un inventario
 // cerrado se considera 100% (ya no admite más conteo) y uno abierto 0%.

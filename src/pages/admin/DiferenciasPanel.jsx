@@ -9,8 +9,10 @@ import { useIsNarrow } from '../../hooks/useIsNarrow'
 
 const norm = s => (s || '').toString().toLowerCase().trim()
 
-// Guaraníes sin decimales, con separador de miles (48.250.000)
-const fmtGs = n => (Math.round(Number(n) || 0)).toLocaleString('es-PY')
+// Guaraníes con separador de miles y hasta 4 decimales cuando el valor no es entero.
+// Un entero como 48250000 se muestra "48.250.000". Un costo unitario como 0.9091 se
+// muestra "0,9091". Sin trailing zeros para no ensuciar totales.
+const fmtGs = n => (Number(n) || 0).toLocaleString('es-PY', { maximumFractionDigits: 4 })
 
 // Columnas de la tabla desktop (incluye Costo unit. y Dif. valorizada)
 const GRID_COLS = '92px 1fr 62px 62px 66px 92px 104px 84px'
